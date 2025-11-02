@@ -1,0 +1,31 @@
+# Example Ingress with Automatic TLS
+# cert-manager will automatically create Certificate and manage TLS
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-ingress-tls
+  namespace: default
+  annotations:
+    # Tell cert-manager to create a Certificate
+    cert-manager.io/cluster-issuer: letsencrypt-staging  # or letsencrypt-prod
+
+    # NGINX Ingress annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - app.example.com  # TODO: Replace with actual domain
+    secretName: app-example-tls  # cert-manager will create this Secret
+  rules:
+  - host: app.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: example-service
+            port:
+              number: 80

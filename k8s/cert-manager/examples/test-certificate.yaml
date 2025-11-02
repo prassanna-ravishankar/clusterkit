@@ -1,0 +1,34 @@
+# Test Certificate Resource
+# Validates cert-manager and Let's Encrypt integration
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: test-certificate
+  namespace: default
+spec:
+  # Secret where certificate will be stored
+  secretName: test-tls-cert
+
+  # Certificate duration and renewal
+  duration: 2160h  # 90 days
+  renewBefore: 360h  # 15 days before expiration
+
+  # Subject details
+  subject:
+    organizations:
+    - ClusterKit
+
+  # Common name (optional, will use first dnsName if not specified)
+  # commonName: test.example.com
+
+  # DNS names for the certificate
+  dnsNames:
+  - test.clusterkit.local  # TODO: Replace with actual domain
+
+  # Reference to ClusterIssuer
+  # Use staging for testing, prod for production
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+    group: cert-manager.io

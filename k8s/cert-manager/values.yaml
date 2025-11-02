@@ -1,0 +1,75 @@
+# cert-manager Helm Values
+# Optimized for GKE Autopilot with Let's Encrypt integration
+
+# Install CRDs as part of Helm installation
+installCRDs: true
+
+# Resource configuration for GKE Autopilot
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Webhook resources
+webhook:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# CA injector resources
+cainjector:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Enable Prometheus metrics
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: false  # Enable if using Prometheus Operator
+
+# Global configuration
+global:
+  leaderElection:
+    namespace: cert-manager
+
+# Controller configuration
+replicaCount: 1
+
+# Logging
+logLevel: 2  # 0=panic, 1=fatal, 2=error, 3=warning, 4=info, 5=debug
+
+# Enable recursive nameservers for DNS-01 challenges (future use)
+# Currently using HTTP-01, but prepared for DNS-01
+extraArgs:
+  - --dns01-recursive-nameservers-only
+  - --dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false  # Not needed with single replica on Autopilot
