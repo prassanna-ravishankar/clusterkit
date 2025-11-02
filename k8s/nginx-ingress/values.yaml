@@ -1,0 +1,90 @@
+# NGINX Ingress Controller Helm Values
+# Optimized for GKE Autopilot with Cloudflare integration
+
+controller:
+  # Resource configuration for GKE Autopilot
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+  # Replica configuration
+  replicaCount: 2
+  minAvailable: 1
+
+  # Service configuration with static IP
+  service:
+    type: LoadBalancer
+    annotations:
+      # Reference to static IP created in Terraform
+      # Update this with actual IP name from terraform output
+      cloud.google.com/load-balancer-type: "External"
+    externalTrafficPolicy: Local  # Preserve client IP
+
+  # Cloudflare IP forwarding configuration
+  config:
+    # Enable forwarded headers from Cloudflare
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+
+    # Trust Cloudflare IP ranges for X-Forwarded-For
+    use-proxy-protocol: "false"
+
+    # Real IP handling
+    enable-real-ip: "true"
+
+    # Cloudflare IP ranges (subset - full list in production)
+    proxy-real-ip-cidr: "173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
+
+    # SSL configuration
+    ssl-protocols: "TLSv1.2 TLSv1.3"
+    ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+
+    # Enable SSL passthrough for services that manage their own TLS
+    allow-snippet-annotations: "true"
+
+    # Performance tuning
+    worker-processes: "auto"
+    max-worker-connections: "16384"
+
+    # Timeouts
+    proxy-connect-timeout: "60"
+    proxy-send-timeout: "60"
+    proxy-read-timeout: "60"
+
+    # WebSocket support
+    proxy-buffer-size: "8k"
+
+    # Logging
+    log-format-upstream: '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id $http_cf_connecting_ip'
+
+  # Metrics and monitoring
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false  # Enable if using Prometheus Operator
+
+  # Admission webhooks
+  admissionWebhooks:
+    enabled: true
+
+  # IngressClass configuration
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+    controllerValue: "k8s.io/ingress-nginx"
+
+# Default backend (optional - serves 404 for unmatched routes)
+defaultBackend:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
