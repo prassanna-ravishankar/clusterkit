@@ -1,0 +1,17 @@
+# GCP Project Configuration
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+
+# Cluster Configuration
+cluster_name       = "clusterkit"
+kubernetes_version = "1.28"
+
+# Networking
+static_ip_name = "clusterkit-ingress-ip"
+
+# Environment
+environment = "dev"
+
+# Security
+deletion_protection        = true
+create_service_account_keys = false  # Use Workload Identity instead

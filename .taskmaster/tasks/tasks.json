@@ -1,0 +1,1095 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Terraform Infrastructure Foundation",
+        "description": "Create Terraform modules for GKE Autopilot cluster, static IP, and IAM service accounts",
+        "details": "Create terraform/ directory structure with modules for: 1) terraform/gke/ - GKE Autopilot cluster configuration with latest Kubernetes version (1.28+), static external IP for LoadBalancer, IAM service accounts for ExternalDNS and cert-manager. 2) terraform/providers/ - Google Cloud Platform provider with required APIs (container.googleapis.com, compute.googleapis.com). Include variables.tf for project_id, region, cluster_name. Use google_container_cluster resource with mode='AUTOPILOT' and release_channel='REGULAR'.",
+        "testStrategy": "Validate Terraform plan output, verify cluster creation with 'terraform apply', test kubectl connectivity to cluster",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create terraform directory structure and provider configuration",
+            "description": "Initialize the terraform project structure with proper directory layout and configure the Google Cloud Platform provider with required API enablement",
+            "dependencies": [],
+            "details": "Create terraform/ root directory with subdirectories: terraform/modules/gke/, terraform/modules/networking/, terraform/providers/. Configure google provider in providers/main.tf with required APIs: container.googleapis.com, compute.googleapis.com, iam.googleapis.com. Set up provider version constraints and authentication configuration.",
+            "status": "done",
+            "testStrategy": "Validate terraform init runs successfully, verify provider configuration with terraform validate"
+          },
+          {
+            "id": 2,
+            "title": "Implement GKE Autopilot cluster module with required APIs",
+            "description": "Create the core GKE Autopilot cluster module with proper configuration for Kubernetes 1.28+ and required Google Cloud APIs",
+            "dependencies": [
+              1
+            ],
+            "details": "Create terraform/modules/gke/main.tf with google_container_cluster resource configured for mode='AUTOPILOT' and release_channel='REGULAR'. Include kubernetes_version constraint for 1.28+. Configure cluster networking, node pools, and security settings. Enable required APIs through google_project_service resources.",
+            "status": "done",
+            "testStrategy": "Run terraform plan to validate cluster configuration, verify API enablement with gcloud services list"
+          },
+          {
+            "id": 3,
+            "title": "Configure static IP resource for LoadBalancer services",
+            "description": "Create Google Cloud static IP address resource for LoadBalancer services and external access configuration",
+            "dependencies": [
+              1
+            ],
+            "details": "Create terraform/modules/networking/main.tf with google_compute_global_address resource for static external IP. Configure IP reservation for LoadBalancer services and ingress controllers. Include proper naming conventions and regional/global scope configuration.",
+            "status": "done",
+            "testStrategy": "Validate IP address reservation with terraform plan, test IP allocation and release with terraform apply/destroy"
+          },
+          {
+            "id": 4,
+            "title": "Create IAM service accounts for ExternalDNS and cert-manager",
+            "description": "Set up dedicated Google Cloud IAM service accounts with proper roles and permissions for ExternalDNS and cert-manager operations",
+            "dependencies": [
+              2
+            ],
+            "details": "Create terraform/modules/iam/main.tf with google_service_account resources for external-dns and cert-manager. Configure IAM bindings: dns.admin role for ExternalDNS, secretmanager.secretAccessor for cert-manager. Generate and manage service account keys securely using google_service_account_key resource.",
+            "status": "done",
+            "testStrategy": "Verify service account creation and role assignments with gcloud iam service-accounts list, test permissions with gcloud auth"
+          },
+          {
+            "id": 5,
+            "title": "Add variables.tf and outputs.tf for proper parameterization",
+            "description": "Create comprehensive variable definitions and output values for terraform modules to enable reusability and proper configuration management",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Create variables.tf with required variables: project_id, region, cluster_name, kubernetes_version, static_ip_name. Include optional variables for cluster configuration. Create outputs.tf with cluster endpoint, static IP address, service account emails, and cluster credentials. Add validation rules and default values where appropriate.",
+            "status": "done",
+            "testStrategy": "Validate variable constraints with terraform validate, test outputs with terraform apply and verify accessible values"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Install Knative Serving Platform",
+        "description": "Deploy Knative Serving v1.12+ with proper networking configuration for serverless workloads",
+        "details": "Install Knative Serving using kubectl apply from official releases (v1.12.x stable). Configure networking layer with Kourier or nginx ingress controller. Set up proper RBAC and CRDs. Create HelmChart/YAML manifests in k8s/knative/ directory. Configure autoscaling parameters: default scale-to-zero after 60s inactivity, target concurrency of 10 requests per pod, max scale of 100 pods per service.",
+        "testStrategy": "Deploy test Knative Service, verify scale-to-zero behavior, test request routing and autoscaling",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Research and select Knative Serving version and networking layer",
+            "description": "Evaluate Knative Serving v1.12+ releases and compatible networking solutions (Kourier vs nginx) for optimal serverless workload support",
+            "dependencies": [],
+            "details": "Research latest stable Knative Serving v1.12.x releases, compare Kourier and nginx ingress controllers for networking layer. Evaluate compatibility with existing infrastructure, performance characteristics, and maintenance overhead. Document recommended versions and configuration approach.\n<info added on 2025-10-28T00:22:14.995Z>\nDecision finalized: adopt Knative Serving v1.15.x and Kourier, with direct YAML manifests (no Helm). For this subtask, create k8s/knative/01-serving-crds.yaml by pinning upstream Knative Serving v1.15.x serving-crds.yaml (exact upstream content, no modifications). Include a header comment with the source tag and checksum to track provenance. Ensure this file is applied first (prefix 01-) and that it contains CRDs for services.serving.knative.dev, revisions.serving.knative.dev, routes.serving.knative.dev, and configurations.serving.knative.dev. Aligns with the manifest structure documented in k8s/knative/KNATIVE_DECISION.md. Verification: confirm CRDs are registered via kubectl api-resources | grep serving.knative.dev and validate no diff against upstream for future upgrades.\n</info added on 2025-10-28T00:22:14.995Z>",
+            "status": "done",
+            "testStrategy": "Create test matrix comparing networking solutions with basic Knative Service deployments"
+          },
+          {
+            "id": 2,
+            "title": "Create Helm chart or YAML manifests for Knative CRDs",
+            "description": "Generate deployment manifests for Knative Serving Custom Resource Definitions and core resources in k8s/knative/ directory",
+            "dependencies": [
+              1
+            ],
+            "details": "Create structured YAML manifests or Helm chart for Knative CRDs installation. Include all required CustomResourceDefinitions, RBAC configurations, and namespace setup. Organize files in k8s/knative/ directory with proper naming conventions and versioning.",
+            "status": "done",
+            "testStrategy": "Validate CRD installation with kubectl apply --dry-run and verify resource definitions"
+          },
+          {
+            "id": 3,
+            "title": "Configure Knative Serving core components",
+            "description": "Deploy and configure Knative Serving controller, webhook, and activator components with proper resource allocation and RBAC",
+            "dependencies": [
+              2
+            ],
+            "details": "Install Knative Serving core components using official releases. Configure controller deployment with appropriate resource requests/limits, configure webhook for admission control, and set up activator for scale-from-zero functionality. Ensure proper RBAC permissions for all components.",
+            "status": "done",
+            "testStrategy": "Verify all Knative components are running and ready, test webhook admission control functionality"
+          },
+          {
+            "id": 4,
+            "title": "Set up networking layer with Kourier or nginx",
+            "description": "Deploy and configure the selected networking layer (Kourier or nginx) for Knative Service routing and ingress management",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Install and configure the networking layer selected in subtask 1. Set up proper ingress configuration, configure domain routing for Knative Services, and ensure integration with cluster ingress controller. Configure networking policies and service mesh integration if required.",
+            "status": "done",
+            "testStrategy": "Deploy test Knative Service and verify external accessibility through networking layer"
+          },
+          {
+            "id": 5,
+            "title": "Configure autoscaling parameters and policies",
+            "description": "Set up Knative autoscaling configuration with scale-to-zero, concurrency targets, and maximum scale limits",
+            "dependencies": [
+              3
+            ],
+            "details": "Configure Knative autoscaling with scale-to-zero after 60s inactivity, target concurrency of 10 requests per pod, and maximum scale of 100 pods per service. Set up ConfigMap for global autoscaling parameters and document annotation-based per-service overrides.",
+            "status": "done",
+            "testStrategy": "Deploy test services with different autoscaling configurations and validate scaling behavior under load"
+          },
+          {
+            "id": 6,
+            "title": "Create validation tests for scale-to-zero behavior",
+            "description": "Implement comprehensive tests to validate Knative scale-to-zero functionality, cold start performance, and autoscaling behavior",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Create test suite to validate scale-to-zero behavior after configured inactivity period, measure cold start latency, test autoscaling under various load patterns, and verify proper cleanup of idle pods. Include integration tests for the complete request flow from external traffic to scaled pods.",
+            "status": "done",
+            "testStrategy": "Automated test suite with load generation, metrics collection, and behavioral validation of scaling events"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Configure NGINX Ingress Controller",
+        "description": "Setup NGINX Ingress with LoadBalancer service and Cloudflare IP forwarding",
+        "details": "Deploy ingress-nginx/controller v1.9+ via Helm chart. Configure service type LoadBalancer with static IP from task 1. Enable real IP forwarding for Cloudflare with use-forwarded-headers=true and compute-full-forwarded-for=true. Set proper annotations for CF-Connecting-IP header handling. Configure SSL passthrough and proper backends for Knative services.",
+        "testStrategy": "Test ingress routing, verify client IP forwarding from Cloudflare, validate SSL termination",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install NGINX Ingress Controller via Helm",
+            "description": "Deploy the NGINX Ingress Controller using the official Helm chart with proper configuration for Kubernetes cluster integration",
+            "dependencies": [],
+            "details": "Add the ingress-nginx Helm repository and install the controller v1.9+ using Helm. Configure the deployment with appropriate resource limits, replica count for high availability, and enable metrics collection. Ensure proper namespace creation and RBAC permissions are set up for the controller to manage ingress resources across the cluster.",
+            "status": "in-progress",
+            "testStrategy": "Verify controller pods are running and ready, check that ingress class is properly registered, test basic HTTP routing functionality"
+          },
+          {
+            "id": 2,
+            "title": "Configure LoadBalancer service with static IP integration",
+            "description": "Set up the NGINX Ingress service as LoadBalancer type and integrate with the static IP from task 1",
+            "dependencies": [
+              1
+            ],
+            "details": "Modify the NGINX Ingress service configuration to use LoadBalancer type and assign the static IP address allocated in task 1. Configure service annotations for cloud provider integration, set proper ports (80, 443), and ensure the external IP is correctly bound to the service. Include session affinity settings if required.",
+            "status": "pending",
+            "testStrategy": "Verify external IP assignment matches static IP from task 1, test connectivity to LoadBalancer endpoints, validate port forwarding works correctly"
+          },
+          {
+            "id": 3,
+            "title": "Set up Cloudflare IP forwarding and real IP handling",
+            "description": "Configure NGINX to properly handle Cloudflare proxy headers and forward real client IPs",
+            "dependencies": [
+              2
+            ],
+            "details": "Enable use-forwarded-headers=true and compute-full-forwarded-for=true in NGINX configuration. Set up proper handling of CF-Connecting-IP header, configure trusted proxy ranges for Cloudflare IP addresses, and ensure real client IPs are properly logged and passed to backend services. Add configuration for X-Forwarded-For and X-Real-IP headers.",
+            "status": "pending",
+            "testStrategy": "Test client IP forwarding through Cloudflare proxy, verify headers are correctly set in backend services, validate logging shows real client IPs"
+          },
+          {
+            "id": 4,
+            "title": "Configure SSL passthrough and backend routing",
+            "description": "Set up SSL passthrough capabilities and configure proper backend routing for Knative services",
+            "dependencies": [
+              3
+            ],
+            "details": "Enable SSL passthrough in NGINX Ingress for services that handle their own TLS termination. Configure backend protocol settings for HTTP/HTTPS backends, set up proper upstream configuration for Knative services, and ensure routing rules work correctly with service mesh integration. Include configuration for WebSocket support and proper timeout settings.",
+            "status": "pending",
+            "testStrategy": "Test SSL passthrough functionality, verify backend routing to Knative services, validate WebSocket connections and timeout behavior"
+          },
+          {
+            "id": 5,
+            "title": "Test ingress functionality with sample services",
+            "description": "Deploy test services and validate complete ingress functionality including routing, SSL, and IP forwarding",
+            "dependencies": [
+              4
+            ],
+            "details": "Create sample HTTP and HTTPS services to test the complete ingress setup. Deploy test ingress resources with different routing rules, verify SSL termination and passthrough modes work correctly, test Cloudflare IP forwarding end-to-end, and validate that all components integrate properly with Knative services. Include load testing to verify performance.",
+            "status": "pending",
+            "testStrategy": "Deploy multiple test services with different configurations, verify routing works correctly, test SSL functionality, validate client IP forwarding through complete stack"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Deploy cert-manager for Automatic TLS",
+        "description": "Install cert-manager v1.13+ with Let's Encrypt HTTP-01 challenge support",
+        "details": "Install cert-manager using Helm chart v1.13.x with CRD installation. Create ClusterIssuer for Let's Encrypt production and staging environments using HTTP-01 challenge solver. Configure ACME account registration with ops email. Set up proper RBAC for certificate management. Include Certificate CRD templates for automatic cert generation.",
+        "testStrategy": "Create test Certificate resource, verify ACME challenge completion, validate TLS certificate issuance and renewal",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install cert-manager CRDs and Helm chart",
+            "description": "Install cert-manager v1.13+ using Helm chart with proper CRD installation and RBAC configuration",
+            "dependencies": [],
+            "details": "Add cert-manager Helm repository and install chart v1.13.x with installCRDs=true. Configure proper namespace (cert-manager), service account, and RBAC permissions for certificate management. Verify all CRDs are installed correctly including Certificate, ClusterIssuer, and Issuer resources.",
+            "status": "pending",
+            "testStrategy": "Verify cert-manager pods are running, check CRDs are installed with kubectl get crd | grep cert-manager"
+          },
+          {
+            "id": 2,
+            "title": "Create ClusterIssuer for Let's Encrypt production environment",
+            "description": "Configure production ClusterIssuer with Let's Encrypt ACME using HTTP-01 challenge solver",
+            "dependencies": [
+              1
+            ],
+            "details": "Create production ClusterIssuer YAML with Let's Encrypt production server URL (https://acme-v02.api.letsencrypt.org/directory). Configure HTTP-01 challenge solver with ingress class. Set up ACME account registration with ops email address. Include proper annotations for challenge resolution.",
+            "status": "pending",
+            "testStrategy": "Verify ClusterIssuer is ready with kubectl get clusterissuer, check ACME account registration in logs"
+          },
+          {
+            "id": 3,
+            "title": "Create ClusterIssuer for Let's Encrypt staging environment",
+            "description": "Configure staging ClusterIssuer with Let's Encrypt staging ACME server for testing purposes",
+            "dependencies": [
+              1
+            ],
+            "details": "Create staging ClusterIssuer YAML with Let's Encrypt staging server URL (https://acme-staging-v02.api.letsencrypt.org/directory). Configure HTTP-01 challenge solver matching production setup. Use same ops email for ACME registration. Include rate limiting considerations for staging environment.",
+            "status": "pending",
+            "testStrategy": "Verify staging ClusterIssuer is ready, confirm different server URL in configuration"
+          },
+          {
+            "id": 4,
+            "title": "Test certificate issuance and renewal with sample Certificate resource",
+            "description": "Create test Certificate resource to validate ACME challenge completion and TLS certificate issuance",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Create sample Certificate resource referencing staging ClusterIssuer for testing. Configure test domain with proper DNS resolution. Monitor ACME challenge process including HTTP-01 validation. Verify certificate issuance, storage in Secret, and automatic renewal configuration. Test with both staging and production issuers.",
+            "status": "pending",
+            "testStrategy": "Deploy test Certificate, verify ACME challenge completion, validate TLS certificate in Secret, test certificate renewal timing"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Setup ExternalDNS with Cloudflare Provider",
+        "description": "Configure ExternalDNS to automatically manage DNS records in Cloudflare",
+        "details": "Deploy ExternalDNS v0.14+ with Cloudflare provider. Create Kubernetes Secret with Cloudflare API token (zone:read, dns:edit permissions). Configure sources: service, ingress, knative. Set domain-filter for managed domains, txt-owner-id for record ownership, policy=upsert-only for safety. Include RBAC for reading services/ingresses and managing DNS records.",
+        "testStrategy": "Deploy test service with external DNS annotation, verify DNS record creation in Cloudflare, test record cleanup on service deletion",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Cloudflare API token with proper permissions",
+            "description": "Generate a Cloudflare API token with zone:read and dns:edit permissions for ExternalDNS integration",
+            "dependencies": [],
+            "details": "Log into Cloudflare dashboard, navigate to My Profile > API Tokens, create custom token with Zone:Zone:Read and Zone:DNS:Edit permissions. Scope to specific zones if needed. Document token creation process and store securely for Kubernetes Secret creation.",
+            "status": "pending",
+            "testStrategy": "Verify token permissions by testing API calls to list zones and create test DNS record"
+          },
+          {
+            "id": 2,
+            "title": "Deploy ExternalDNS with Cloudflare provider configuration",
+            "description": "Install ExternalDNS v0.14+ with Cloudflare provider and create Kubernetes Secret with API token",
+            "dependencies": [
+              1
+            ],
+            "details": "Create Kubernetes Secret with Cloudflare API token. Deploy ExternalDNS using Helm chart or YAML manifests with cloudflare provider configuration. Set sources to service, ingress, knative. Configure txt-owner-id for record ownership and policy=upsert-only for safety. Place manifests in k8s/external-dns/ directory.",
+            "status": "pending",
+            "testStrategy": "Verify ExternalDNS pod starts successfully and logs show successful Cloudflare API connection"
+          },
+          {
+            "id": 3,
+            "title": "Configure RBAC for service and ingress watching",
+            "description": "Set up proper Role-Based Access Control for ExternalDNS to read services and ingresses",
+            "dependencies": [],
+            "details": "Create ServiceAccount, ClusterRole, and ClusterRoleBinding for ExternalDNS. Grant permissions to read services, ingresses, nodes, and endpoints. Include permissions for creating and managing DNS-related ConfigMaps and Events. Follow principle of least privilege.",
+            "status": "pending",
+            "testStrategy": "Verify RBAC permissions by checking ExternalDNS can list services and ingresses without errors"
+          },
+          {
+            "id": 4,
+            "title": "Set up domain filtering and ownership policies",
+            "description": "Configure domain-filter for managed domains and ownership policies for safe DNS management",
+            "dependencies": [
+              2
+            ],
+            "details": "Configure domain-filter to restrict ExternalDNS to specific domains. Set txt-owner-id for record ownership tracking. Configure policy=upsert-only to prevent accidental record deletion. Add txt-prefix for TXT record identification. Include annotation-filter if needed for selective service processing.",
+            "status": "pending",
+            "testStrategy": "Deploy service outside domain-filter and verify no DNS records are created, then test with valid domain"
+          },
+          {
+            "id": 5,
+            "title": "Test DNS record creation and cleanup with sample services",
+            "description": "Validate ExternalDNS functionality by deploying test services and verifying DNS record lifecycle",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Create test Kubernetes service with external-dns.alpha.kubernetes.io/hostname annotation. Deploy sample application and verify DNS record creation in Cloudflare dashboard. Test record updates when service changes. Test cleanup by deleting service and confirming DNS record removal.",
+            "status": "pending",
+            "testStrategy": "Deploy test service with DNS annotation, verify record creation in Cloudflare, test record cleanup on service deletion"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Create ClusterKit CLI Foundation",
+        "description": "Build Go-based CLI tool with core commands and Kubernetes client integration",
+        "details": "Create Go CLI using cobra v1.8+ and client-go v0.28+. Initialize project structure with cmd/, pkg/, internal/ directories. Implement core commands: bootstrap, create, status, delete. Set up Kubernetes client configuration and context management. Include configuration file support for cluster credentials and default settings. Use logrus for structured logging and viper for configuration management.",
+        "testStrategy": "Unit tests for CLI commands, integration tests with mock Kubernetes cluster, validate kubectl config integration",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize Go project with proper module structure",
+            "description": "Set up Go module and create standard directory structure for ClusterKit CLI project",
+            "dependencies": [],
+            "details": "Create new Go module with 'go mod init github.com/user/clusterkit'. Set up directory structure: cmd/ for CLI commands, pkg/ for public packages, internal/ for private packages. Initialize main.go in cmd/clusterkit/ as entry point. Create README.md and .gitignore with Go-specific patterns. Set Go version to 1.21+ in go.mod.",
+            "status": "pending",
+            "testStrategy": "Verify go mod tidy runs without errors, validate directory structure follows Go conventions"
+          },
+          {
+            "id": 2,
+            "title": "Set up Cobra CLI framework with core command structure",
+            "description": "Install and configure Cobra v1.8+ to provide CLI framework with root command and subcommand structure",
+            "dependencies": [
+              1
+            ],
+            "details": "Install cobra v1.8+ dependency. Create root command in cmd/clusterkit/root.go with basic CLI setup including version, help, and global flags. Initialize subcommand structure for bootstrap, create, status, delete commands in cmd/clusterkit/cmd/ directory. Set up command aliases and help text. Configure CLI completion support.",
+            "status": "pending",
+            "testStrategy": "Test CLI help output, verify command structure with --help flags, validate completion functionality"
+          },
+          {
+            "id": 3,
+            "title": "Integrate client-go for Kubernetes API access",
+            "description": "Add Kubernetes client-go v0.28+ dependency and set up basic client configuration",
+            "dependencies": [
+              2
+            ],
+            "details": "Install client-go v0.28+ and related dependencies. Create pkg/k8s/client.go with functions to initialize Kubernetes clientset from kubeconfig. Implement connection testing and cluster validation. Add error handling for authentication failures and unreachable clusters. Create interfaces for easier testing and mocking.",
+            "status": "pending",
+            "testStrategy": "Unit tests for client initialization, integration tests with mock Kubernetes API server"
+          },
+          {
+            "id": 4,
+            "title": "Implement configuration management with Viper",
+            "description": "Set up Viper for configuration file management and environment variable support",
+            "dependencies": [
+              2
+            ],
+            "details": "Install viper dependency and create pkg/config/config.go for configuration management. Support YAML/JSON config files in ~/.clusterkit/ and current directory. Handle environment variables with CLUSTERKIT_ prefix. Create default configuration structure with cluster settings, logging level, and timeout values. Implement config validation and migration.",
+            "status": "pending",
+            "testStrategy": "Test config file loading, environment variable override, validate default values and error handling"
+          },
+          {
+            "id": 5,
+            "title": "Add structured logging with logrus",
+            "description": "Configure logrus for structured logging throughout the CLI application",
+            "dependencies": [
+              4
+            ],
+            "details": "Install logrus dependency and create pkg/log/logger.go for centralized logging setup. Configure log levels (debug, info, warn, error) with JSON formatting for production. Add contextual logging with fields for commands, cluster info, and operation IDs. Implement log output to file and stdout with rotation. Support verbose/quiet flags.",
+            "status": "pending",
+            "testStrategy": "Verify log output formats, test log level filtering, validate file rotation and context preservation"
+          },
+          {
+            "id": 6,
+            "title": "Create kubectl config integration and context management",
+            "description": "Implement kubectl configuration loading and Kubernetes context management functionality",
+            "dependencies": [
+              3,
+              5
+            ],
+            "details": "Create pkg/k8s/config.go to load kubectl config from default locations (~/.kube/config). Implement context switching and validation. Add functions to list available contexts, get current context, and validate cluster connectivity. Support custom kubeconfig paths via flags and environment variables. Handle multi-cluster scenarios.",
+            "status": "pending",
+            "testStrategy": "Test kubeconfig loading from various locations, validate context switching, verify cluster connectivity checks"
+          },
+          {
+            "id": 7,
+            "title": "Implement basic CLI commands with placeholder functionality",
+            "description": "Create bootstrap, create, status, and delete commands with basic structure and placeholder implementations",
+            "dependencies": [
+              6
+            ],
+            "details": "Implement cmd/clusterkit/cmd/bootstrap.go for cluster initialization, cmd/clusterkit/cmd/create.go for resource creation, cmd/clusterkit/cmd/status.go for cluster status, and cmd/clusterkit/cmd/delete.go for resource deletion. Add command flags, argument validation, and help text. Include placeholder implementations that log actions and validate inputs. Ensure commands integrate with logging and configuration systems.",
+            "status": "pending",
+            "testStrategy": "Test each command's help output, validate flag parsing, verify placeholder functionality executes without errors"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Implement Knative Service Creation",
+        "description": "Add CLI functionality to create and manage Knative Services with auto DNS and TLS",
+        "details": "Implement 'clusterkit create' command that generates Knative Service manifests with proper resource requests (100m CPU, 128Mi memory), autoscaling annotations (min-scale=0, max-scale=5, target=10), and domain configuration. Integrate with cert-manager for automatic Certificate creation. Support --min-scale flag for always-on services. Include validation for resource specifications and domain format.",
+        "testStrategy": "Test service creation with various configurations, verify DNS/TLS automation, validate scaling behavior",
+        "priority": "high",
+        "dependencies": [
+          2,
+          4,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Knative Service manifest generation with proper resource specifications",
+            "description": "Create the core functionality to generate Knative Service YAML manifests with standardized resource requests and limits",
+            "dependencies": [],
+            "details": "Implement manifest generation logic that creates Knative Service specs with 100m CPU and 128Mi memory resource requests. Include proper container configuration, service metadata, and revision template structure. Ensure generated manifests are valid Knative resources that can be applied to cluster.",
+            "status": "pending",
+            "testStrategy": "Unit tests for manifest generation, validation of generated YAML structure, integration tests applying manifests to test cluster"
+          },
+          {
+            "id": 2,
+            "title": "Add domain configuration and validation logic",
+            "description": "Implement domain parsing, validation, and configuration for Knative Services with proper DNS setup",
+            "dependencies": [
+              1
+            ],
+            "details": "Create domain validation functions to check format and availability. Implement logic to configure custom domains in Knative Service specs. Add support for both apex domains and subdomains. Include DNS record validation and conflict detection to prevent domain collisions.",
+            "status": "pending",
+            "testStrategy": "Test domain format validation, verify DNS configuration in manifests, test domain conflict detection with existing services"
+          },
+          {
+            "id": 3,
+            "title": "Integrate with cert-manager for automatic Certificate creation",
+            "description": "Implement automatic TLS certificate generation and management using cert-manager integration",
+            "dependencies": [
+              2
+            ],
+            "details": "Create Certificate resource generation logic that works with cert-manager. Implement automatic certificate provisioning for configured domains. Add support for Let's Encrypt ACME challenges. Include certificate renewal monitoring and error handling for failed certificate issuance.",
+            "status": "pending",
+            "testStrategy": "Test certificate creation for various domains, verify ACME challenge completion, validate certificate renewal process"
+          },
+          {
+            "id": 4,
+            "title": "Implement autoscaling annotation management",
+            "description": "Add comprehensive autoscaling configuration with proper Knative annotations for scaling behavior",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement autoscaling annotation logic with min-scale=0, max-scale=5, and target=10 as defaults. Add support for custom scaling parameters and concurrency targets. Include scale-to-zero configuration and cold start optimization settings. Validate scaling annotation combinations for compatibility.",
+            "status": "pending",
+            "testStrategy": "Test autoscaling behavior under load, verify scale-to-zero functionality, validate custom scaling parameter application"
+          },
+          {
+            "id": 5,
+            "title": "Add support for --min-scale flag and validation",
+            "description": "Implement CLI flag support for minimum scale configuration with proper validation and always-on service support",
+            "dependencies": [
+              4
+            ],
+            "details": "Add --min-scale CLI flag parsing and validation logic. Implement override functionality for default min-scale=0 to support always-on services. Include validation for min-scale values against max-scale limits. Add cost estimation warnings for non-zero min-scale configurations.",
+            "status": "pending",
+            "testStrategy": "Test CLI flag parsing, verify min-scale validation logic, test always-on service behavior with non-zero min-scale"
+          },
+          {
+            "id": 6,
+            "title": "Create end-to-end testing for service creation workflow",
+            "description": "Implement comprehensive integration tests for the complete service creation process including DNS, TLS, and scaling",
+            "dependencies": [
+              3,
+              5
+            ],
+            "details": "Create end-to-end test suite that validates complete service creation workflow from CLI command to running service with proper DNS and TLS. Include tests for various configuration combinations, error scenarios, and rollback functionality. Validate service accessibility and scaling behavior in test environment.",
+            "status": "pending",
+            "testStrategy": "End-to-end integration tests, service accessibility validation, DNS/TLS verification, scaling behavior testing under simulated load"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Add PostgreSQL StatefulSet Support",
+        "description": "Implement in-cluster PostgreSQL deployment with persistent storage and backup capabilities",
+        "details": "Create PostgreSQL StatefulSet using postgres:16-alpine image with persistent volume claims. Configure automatic backup using GCP disk snapshots via VolumeSnapshot CRDs. Implement 'clusterkit db create' command to provision database with generated credentials stored in Kubernetes Secrets. Include connection string generation and database initialization scripts. Set resource limits: 100m CPU, 256Mi memory, 10Gi storage default.",
+        "testStrategy": "Test database creation, persistence across pod restarts, backup/restore functionality, connection string generation",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create PostgreSQL StatefulSet manifest templates with proper resource limits",
+            "description": "Design and implement StatefulSet manifest templates for PostgreSQL deployment with postgres:16-alpine image and appropriate resource constraints",
+            "dependencies": [],
+            "details": "Create YAML templates for PostgreSQL StatefulSet with postgres:16-alpine image. Configure resource limits: 100m CPU, 256Mi memory requests. Set up proper pod anti-affinity rules for high availability. Include environment variables for database configuration, security context for non-root execution, and readiness/liveness probes for health checking.",
+            "status": "pending",
+            "testStrategy": "Validate StatefulSet creation, verify resource limits are applied, test pod scheduling and health checks"
+          },
+          {
+            "id": 2,
+            "title": "Implement persistent volume claim configuration",
+            "description": "Configure PersistentVolumeClaim templates for PostgreSQL data persistence with proper storage class and access modes",
+            "dependencies": [
+              1
+            ],
+            "details": "Create PVC templates with 10Gi default storage size and ReadWriteOnce access mode. Configure storage class for GCP persistent disks with SSD performance. Implement volume mount configuration in StatefulSet for PostgreSQL data directory (/var/lib/postgresql/data). Include proper ownership and permission settings for postgres user.",
+            "status": "pending",
+            "testStrategy": "Test data persistence across pod restarts, verify storage class allocation, validate file permissions and ownership"
+          },
+          {
+            "id": 3,
+            "title": "Set up secret generation for database credentials",
+            "description": "Implement automatic generation and management of PostgreSQL database credentials stored in Kubernetes Secrets",
+            "dependencies": [],
+            "details": "Create secure random password generation for PostgreSQL superuser and application user accounts. Store credentials in Kubernetes Secrets with proper labels and annotations. Implement credential rotation capability and secure secret mounting in StatefulSet. Include database name, username, and password fields with base64 encoding.",
+            "status": "pending",
+            "testStrategy": "Verify secret creation with proper credentials, test secret mounting in pods, validate password complexity and uniqueness"
+          },
+          {
+            "id": 4,
+            "title": "Configure GCP disk snapshot backup automation",
+            "description": "Set up automated backup system using GCP VolumeSnapshot CRDs for PostgreSQL data protection",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement VolumeSnapshot resource creation for PostgreSQL PVCs using GCP CSI driver. Configure VolumeSnapshotClass with proper snapshot policies and retention settings. Create CronJob for scheduled snapshots with configurable frequency. Include snapshot verification and cleanup of old snapshots based on retention policy.",
+            "status": "pending",
+            "testStrategy": "Test snapshot creation and restoration, verify backup scheduling, validate cleanup of expired snapshots"
+          },
+          {
+            "id": 5,
+            "title": "Implement 'clusterkit db create' command",
+            "description": "Develop CLI command to provision PostgreSQL databases with automated resource creation and configuration",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Create CLI command that orchestrates StatefulSet, PVC, and Secret creation for PostgreSQL instances. Support command-line flags for database name, storage size, and resource limits. Implement proper error handling and status reporting. Include namespace isolation and resource naming conventions with cluster-wide uniqueness validation.",
+            "status": "pending",
+            "testStrategy": "Test command execution with various parameters, verify resource creation order, validate error handling for conflicts"
+          },
+          {
+            "id": 6,
+            "title": "Add connection string generation and validation",
+            "description": "Implement connection string generation and database initialization scripts for PostgreSQL instances",
+            "dependencies": [
+              3,
+              5
+            ],
+            "details": "Generate PostgreSQL connection strings with proper format including host, port, database, username from created secrets. Implement database initialization scripts for schema creation and user privilege setup. Create validation functions for connection testing and health checks. Include support for SSL connections and connection pooling parameters.",
+            "status": "pending",
+            "testStrategy": "Test connection string accuracy, verify database connectivity, validate initialization script execution and user permissions"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement Database Attachment to Apps",
+        "description": "Create mechanism to securely connect applications to databases via secrets injection",
+        "details": "Implement 'clusterkit db attach' command that injects database connection secrets into application environments. Create helper functions to generate DATABASE_URL format strings (postgresql://user:pass@host:port/db). Support multiple database engines (PostgreSQL, MySQL) with proper connection string formats. Include RBAC for secret reading across namespaces and secret mounting in application pods.",
+        "testStrategy": "Test secret injection into applications, verify database connectivity from pods, validate secret rotation",
+        "priority": "medium",
+        "dependencies": [
+          7,
+          8
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement secret injection logic for database connections",
+            "description": "Create core functionality to inject database connection secrets into application environments with proper secret mounting and environment variable mapping",
+            "dependencies": [],
+            "details": "Develop secret injection mechanism that can mount database credentials as environment variables in application pods. Implement functions to read secrets from source namespace, transform them into appropriate format, and inject into target application's deployment spec. Handle secret rotation and updates automatically.",
+            "status": "pending",
+            "testStrategy": "Unit tests for secret transformation logic, integration tests for secret mounting in pods, verify environment variables are properly set"
+          },
+          {
+            "id": 2,
+            "title": "Create DATABASE_URL generation for PostgreSQL and MySQL formats",
+            "description": "Implement helper functions to generate proper DATABASE_URL connection strings for PostgreSQL and MySQL database engines",
+            "dependencies": [],
+            "details": "Create utility functions that format database connection strings according to standard URL formats: postgresql://user:pass@host:port/db for PostgreSQL and mysql://user:pass@host:port/db for MySQL. Handle special characters in passwords, support SSL parameters, and validate connection string format. Include error handling for malformed credentials.",
+            "status": "pending",
+            "testStrategy": "Unit tests for URL generation with various credential formats, test special character escaping, validate against actual database connections"
+          },
+          {
+            "id": 3,
+            "title": "Set up RBAC for cross-namespace secret access",
+            "description": "Configure Role-Based Access Control to allow applications to read database secrets from different namespaces securely",
+            "dependencies": [],
+            "details": "Create RBAC policies including ClusterRole and ClusterRoleBinding resources that grant necessary permissions for reading secrets across namespaces. Implement principle of least privilege by limiting access to only database-related secrets. Create service accounts with appropriate permissions for the attachment process.",
+            "status": "pending",
+            "testStrategy": "Test RBAC permissions work correctly, verify cross-namespace secret access, validate security boundaries are maintained"
+          },
+          {
+            "id": 4,
+            "title": "Implement 'clusterkit db attach' command",
+            "description": "Create CLI command that orchestrates the database attachment process by combining secret injection, URL generation, and RBAC configuration",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Implement main CLI command that accepts application name, database name, and optional parameters. Orchestrate the attachment process by validating inputs, setting up RBAC if needed, generating appropriate DATABASE_URL, and injecting secrets into target application. Include proper error handling and rollback capabilities.",
+            "status": "pending",
+            "testStrategy": "End-to-end testing of complete attachment workflow, test error scenarios and rollback, verify command-line interface and help text"
+          },
+          {
+            "id": 5,
+            "title": "Add validation and testing for database connectivity",
+            "description": "Implement comprehensive validation to ensure database connections work properly after attachment and add automated testing suite",
+            "dependencies": [
+              4
+            ],
+            "details": "Create validation functions that test actual database connectivity from application pods using injected credentials. Implement health checks that verify DATABASE_URL format and connection success. Add comprehensive test suite covering multiple database engines, error scenarios, and edge cases like credential rotation.",
+            "status": "pending",
+            "testStrategy": "Integration tests with real databases, test connection validation logic, verify health checks work in various scenarios including network failures"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Add Multi-Domain Support",
+        "description": "Implement domain management for multiple domains per application",
+        "details": "Implement 'clusterkit domain add' command to attach additional domains to existing Knative Services. Update Knative Service spec to handle multiple domains via traffic configuration. Automatically create Certificate resources for each domain. Support both apex domains and subdomains with proper DNS validation. Include domain validation and conflict detection.",
+        "testStrategy": "Test multiple domain attachment, verify certificate generation for each domain, validate traffic routing",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement domain validation and conflict detection",
+            "description": "Create validation logic to ensure domains are properly formatted, not already in use, and DNS is correctly configured before attachment",
+            "dependencies": [],
+            "details": "Implement DNS validation using dig/nslookup to verify domain ownership and configuration. Check for existing domain usage across Knative Services to prevent conflicts. Validate domain format (apex vs subdomain) and ensure proper DNS records exist. Create validation middleware that can be reused across domain operations.",
+            "status": "pending",
+            "testStrategy": "Test with valid/invalid domains, verify conflict detection with existing services, validate DNS resolution checks"
+          },
+          {
+            "id": 2,
+            "title": "Update Knative Service traffic configuration for multiple domains",
+            "description": "Modify Knative Service spec to support multiple domains through traffic routing configuration and external domain mappings",
+            "dependencies": [
+              1
+            ],
+            "details": "Update Knative Service manifest generation to include multiple domain mappings in the traffic configuration. Implement DomainMapping resources for additional domains. Ensure proper traffic percentage distribution and routing rules. Update existing service modification logic to handle domain additions without disrupting current traffic.",
+            "status": "pending",
+            "testStrategy": "Test traffic routing to multiple domains, verify domain mapping creation, validate service updates without downtime"
+          },
+          {
+            "id": 3,
+            "title": "Integrate automatic Certificate resource creation for additional domains",
+            "description": "Extend cert-manager integration to automatically create Certificate resources for each additional domain attached to services",
+            "dependencies": [
+              2
+            ],
+            "details": "Modify certificate creation logic to generate Certificate resources for each domain. Ensure proper issuer configuration (Let's Encrypt or custom CA). Handle certificate renewal and validation. Update certificate monitoring to track status of all certificates associated with a service. Include cleanup logic for certificates when domains are removed.",
+            "status": "pending",
+            "testStrategy": "Test certificate generation for multiple domains, verify SSL/TLS termination, validate certificate renewal process"
+          },
+          {
+            "id": 4,
+            "title": "Implement 'clusterkit domain add' command with proper error handling",
+            "description": "Create the CLI command interface for adding domains to existing services with comprehensive error handling and user feedback",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Implement command-line interface for 'clusterkit domain add <service-name> <domain>' with proper argument validation. Include progress indicators for domain validation, service updates, and certificate creation. Implement rollback mechanisms on failure. Provide clear error messages for common issues like DNS misconfiguration or certificate generation failures. Include --dry-run flag for validation without changes.",
+            "status": "pending",
+            "testStrategy": "Test command with various scenarios, verify error handling and rollback, validate user experience with progress indicators"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Implement Status and Monitoring Commands",
+        "description": "Add comprehensive status reporting with cost estimation and resource usage",
+        "details": "Implement 'clusterkit status' command showing application health, scaling status, certificate validity, last traffic time, and estimated costs. Integrate with GCP Cloud Monitoring API for resource usage metrics. Calculate cost estimates based on current resource consumption and GKE Autopilot pricing. Include 'clusterkit logs' command for log aggregation from Cloud Logging.",
+        "testStrategy": "Test status reporting accuracy, verify cost calculations, validate log retrieval from multiple sources",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement application health status checking",
+            "description": "Create functionality to check the health status of deployed applications by querying Kubernetes resources and Knative Service readiness",
+            "dependencies": [],
+            "details": "Implement health checking by querying Kubernetes API for pod status, readiness probes, and Knative Service conditions. Check deployment status, replica counts, and any error conditions. Create health score calculation based on pod readiness, service availability, and recent error rates.",
+            "status": "pending",
+            "testStrategy": "Test health checking against healthy and unhealthy services, verify accurate status reporting and error detection"
+          },
+          {
+            "id": 2,
+            "title": "Integrate with GCP Cloud Monitoring API for metrics",
+            "description": "Implement integration with Google Cloud Monitoring API to retrieve resource usage metrics for deployed applications",
+            "dependencies": [
+              1
+            ],
+            "details": "Set up Cloud Monitoring API client with proper authentication. Query metrics for CPU usage, memory consumption, request rates, and network traffic. Implement metric aggregation over time windows and handle API rate limits. Store and cache metrics data for cost calculations.",
+            "status": "pending",
+            "testStrategy": "Test API integration with various metric queries, verify data accuracy against actual resource usage, validate rate limiting handling"
+          },
+          {
+            "id": 3,
+            "title": "Create cost estimation logic based on resource usage",
+            "description": "Develop cost calculation engine using GKE Autopilot pricing model and current resource consumption data",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement cost calculation using GKE Autopilot pricing tiers for CPU, memory, and storage. Calculate costs based on actual resource usage from monitoring metrics. Include network egress costs and persistent volume pricing. Support hourly, daily, and monthly cost projections with usage trends.",
+            "status": "pending",
+            "testStrategy": "Test cost calculations against known usage patterns, verify accuracy with actual GCP billing data, validate projection algorithms"
+          },
+          {
+            "id": 4,
+            "title": "Implement certificate validity checking",
+            "description": "Add functionality to check TLS certificate validity, expiration dates, and certificate status for all domains",
+            "dependencies": [
+              1
+            ],
+            "details": "Query cert-manager Certificate resources for status and validity. Check certificate expiration dates and renewal status. Validate certificate chains and issuer information. Include warnings for certificates expiring within 30 days and errors for invalid or expired certificates.",
+            "status": "pending",
+            "testStrategy": "Test certificate validation against valid and expired certificates, verify expiration warnings and renewal status detection"
+          },
+          {
+            "id": 5,
+            "title": "Add log aggregation from Cloud Logging",
+            "description": "Implement log retrieval and aggregation functionality using Google Cloud Logging API for application logs",
+            "dependencies": [],
+            "details": "Set up Cloud Logging API client to query application logs by service name, namespace, and time range. Implement log filtering, pagination, and real-time streaming. Support log level filtering (error, warn, info) and search functionality. Include structured log parsing for JSON logs.",
+            "status": "pending",
+            "testStrategy": "Test log retrieval from multiple services, verify filtering and search functionality, validate real-time log streaming"
+          },
+          {
+            "id": 6,
+            "title": "Create 'clusterkit status' and 'clusterkit logs' commands",
+            "description": "Implement CLI commands that integrate all monitoring functionality into user-friendly status reporting and log viewing interfaces",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Create 'clusterkit status' command displaying application health, scaling metrics, certificate status, cost estimates, and last traffic time in formatted output. Implement 'clusterkit logs' command with options for service selection, time ranges, log levels, and follow mode. Include JSON output option and colorized formatting.",
+            "status": "pending",
+            "testStrategy": "Test complete status command output format, verify logs command functionality with various filters, validate user experience and command performance"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Add Traditional Deployment Mode",
+        "description": "Support non-serverless deployments for always-on applications",
+        "details": "Implement --traditional flag for 'clusterkit create' to deploy standard Kubernetes Deployments instead of Knative Services. Support websocket applications and services requiring persistent connections. Configure HorizontalPodAutoscaler for traditional deployments. Include Service and Ingress resource creation with proper annotations for cert-manager and ExternalDNS integration.",
+        "testStrategy": "Test traditional deployment creation, verify ingress routing, validate HPA behavior with load testing",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Deployment manifest templates for traditional workloads",
+            "description": "Design and implement Kubernetes Deployment manifest templates that support traditional always-on applications with proper resource specifications and configuration options.",
+            "dependencies": [],
+            "details": "Create template files for Kubernetes Deployment resources with configurable replicas, resource requests/limits, environment variables, and volume mounts. Include support for different application types (web servers, APIs, websocket services). Ensure templates follow Kubernetes best practices with proper labels, selectors, and pod specifications. Add validation for required fields and resource constraints.",
+            "status": "pending",
+            "testStrategy": "Unit tests for template generation, validation tests for manifest structure, integration tests with kubectl apply"
+          },
+          {
+            "id": 2,
+            "title": "Implement Service and Ingress resource creation",
+            "description": "Build functionality to automatically create Kubernetes Service and Ingress resources for traditional deployments with proper networking configuration.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement Service creation with ClusterIP type for internal communication and LoadBalancer/NodePort options. Create Ingress resources with proper annotations for cert-manager (cert-manager.io/cluster-issuer) and ExternalDNS (external-dns.alpha.kubernetes.io/hostname). Support custom paths, SSL redirect, and backend protocol configuration. Include validation for domain names and port specifications.",
+            "status": "pending",
+            "testStrategy": "Test Service endpoint accessibility, verify Ingress routing rules, validate annotation propagation to cert-manager and ExternalDNS"
+          },
+          {
+            "id": 3,
+            "title": "Configure HorizontalPodAutoscaler for traditional deployments",
+            "description": "Implement HPA configuration for traditional deployments to enable automatic scaling based on CPU and memory metrics.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create HPA manifest templates with configurable min/max replicas, target CPU utilization (default 70%), and memory utilization thresholds. Support custom metrics from Kubernetes metrics server. Include proper resource requests in Deployment templates to enable HPA functionality. Add validation for scaling parameters and metric availability. Configure behavior policies for scale-up/scale-down rates.",
+            "status": "pending",
+            "testStrategy": "Load testing to verify HPA scaling behavior, test metric collection accuracy, validate scaling policies under different load patterns"
+          },
+          {
+            "id": 4,
+            "title": "Add --traditional flag support to create command",
+            "description": "Extend the clusterkit create command to support --traditional flag that switches from Knative Services to standard Kubernetes Deployments.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Modify the create command CLI interface to accept --traditional flag. Implement conditional logic to choose between Knative Service creation (default) and traditional Deployment creation. Add flag validation and help text. Update command parsing to handle traditional-specific options like --replicas, --hpa-min, --hpa-max. Ensure backward compatibility with existing Knative workflow while adding new deployment path.",
+            "status": "pending",
+            "testStrategy": "CLI testing for flag parsing, integration tests comparing traditional vs Knative deployments, validation of flag combinations and error handling"
+          },
+          {
+            "id": 5,
+            "title": "Integrate with existing cert-manager and ExternalDNS automation",
+            "description": "Ensure traditional deployments seamlessly integrate with existing cert-manager and ExternalDNS automation for automatic TLS certificates and DNS management.",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Verify Ingress resources created for traditional deployments include proper annotations for cert-manager Certificate generation (cert-manager.io/cluster-issuer: letsencrypt-prod). Ensure ExternalDNS annotations (external-dns.alpha.kubernetes.io/hostname) are correctly applied for automatic DNS record creation. Test integration with existing ClusterIssuer configuration from Task 4. Validate certificate issuance and DNS propagation for traditional deployments match Knative Service behavior.",
+            "status": "pending",
+            "testStrategy": "End-to-end testing of TLS certificate issuance for traditional deployments, DNS resolution validation, comparison testing with Knative Service automation"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Implement Cloudflare Edge Configuration",
+        "description": "Configure Cloudflare proxy settings and caching rules for optimal performance",
+        "details": "Create Terraform module for Cloudflare configuration including page rules for static asset caching, security rules for basic DDoS protection, and proper cache settings for dynamic applications. Configure CF-Connecting-IP header forwarding and rate limiting rules. Include documentation for DNS proxy configuration (orange cloud) and SSL/TLS settings.",
+        "testStrategy": "Test Cloudflare proxy functionality, verify caching behavior, validate security rules and rate limiting",
+        "priority": "low",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Terraform module for Cloudflare page rules and caching configuration",
+            "description": "Develop a Terraform module that defines Cloudflare page rules for static asset caching and dynamic application cache settings",
+            "dependencies": [],
+            "details": "Create a reusable Terraform module in terraform/modules/cloudflare-caching/ that configures page rules for static assets (CSS, JS, images) with long cache times, dynamic content with appropriate cache headers, and bypass rules for admin/API endpoints. Include variables for cache TTL settings, edge cache TTL, and browser cache TTL. Configure CF-Connecting-IP header forwarding to preserve real client IPs.",
+            "status": "pending",
+            "testStrategy": "Test page rule application by checking cache headers on different content types, verify static assets are cached properly, validate dynamic content caching behavior"
+          },
+          {
+            "id": 2,
+            "title": "Implement security rules and rate limiting via Terraform",
+            "description": "Configure Cloudflare security features including DDoS protection, rate limiting, and firewall rules through Terraform",
+            "dependencies": [
+              1
+            ],
+            "details": "Extend the Terraform module to include Cloudflare security configurations: rate limiting rules for API endpoints (10 requests per minute per IP), firewall rules for basic DDoS protection, security level settings, and challenge pages for suspicious traffic. Configure bot management settings and create custom rules for known attack patterns. Include variables for rate limiting thresholds and security levels.",
+            "status": "pending",
+            "testStrategy": "Test rate limiting by exceeding configured limits, verify DDoS protection triggers appropriately, validate firewall rules block malicious requests"
+          },
+          {
+            "id": 3,
+            "title": "Create documentation for DNS proxy setup and SSL/TLS configuration",
+            "description": "Document the process for configuring Cloudflare DNS proxy (orange cloud) and SSL/TLS settings for optimal security and performance",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create comprehensive documentation covering DNS proxy configuration steps, SSL/TLS mode selection (Full/Strict recommended), certificate management, and troubleshooting common issues. Include guidance on orange cloud vs gray cloud settings, SSL certificate validation, HSTS configuration, and minimum TLS version settings. Provide examples for different application types and security requirements.",
+            "status": "pending",
+            "testStrategy": "Validate documentation accuracy by following setup steps on test domain, verify SSL/TLS configuration results in A+ SSL rating, test DNS propagation and proxy functionality"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Add Bootstrap Command and Automation",
+        "description": "Implement complete cluster bootstrap with dependency validation and setup verification",
+        "details": "Implement 'clusterkit bootstrap' command that orchestrates full cluster setup: GKE creation, component installation (Knative, ingress, cert-manager, ExternalDNS), and validation. Include preflight checks for GCP permissions, Cloudflare API access, and required APIs. Support dry-run mode for validation. Create setup documentation and troubleshooting guides.",
+        "testStrategy": "Test complete bootstrap process, verify all components are properly installed and configured, validate end-to-end functionality",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement GCP permissions and APIs preflight checks",
+            "description": "Create comprehensive validation for required GCP permissions and enabled APIs before bootstrap",
+            "dependencies": [],
+            "details": "Implement checks for GCP project permissions (container.admin, compute.admin, iam.serviceAccountUser), validate enabled APIs (container, compute, cloudresourcemanager, iam), check billing account access, and verify service account credentials. Create structured error reporting with remediation suggestions.",
+            "status": "pending",
+            "testStrategy": "Test with various permission scenarios, verify API enablement checks, validate error messages and remediation guidance"
+          },
+          {
+            "id": 2,
+            "title": "Add Cloudflare API access validation",
+            "description": "Validate Cloudflare API credentials and zone permissions before DNS configuration",
+            "dependencies": [],
+            "details": "Implement Cloudflare API token validation with required permissions (zone:read, dns:edit), verify zone access for target domains, check rate limits and quota availability. Include token scope validation and domain ownership verification.",
+            "status": "pending",
+            "testStrategy": "Test with valid/invalid tokens, verify zone access checks, validate permission scope detection"
+          },
+          {
+            "id": 3,
+            "title": "Create component installation orchestration logic",
+            "description": "Implement ordered installation sequence with dependency management for all cluster components",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create installation orchestrator that handles GKE cluster creation, Knative installation, ingress controller setup, cert-manager deployment, and ExternalDNS configuration in correct dependency order. Include component health checks and installation verification between steps.",
+            "status": "pending",
+            "testStrategy": "Test installation sequence with various failure scenarios, verify component dependencies and health checks"
+          },
+          {
+            "id": 4,
+            "title": "Implement dry-run mode for validation",
+            "description": "Add comprehensive dry-run capability to validate configuration without making changes",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement dry-run mode that validates all configurations, checks resource quotas, simulates installation steps, and reports potential issues without creating resources. Include cost estimation and resource impact analysis.",
+            "status": "pending",
+            "testStrategy": "Test dry-run accuracy against actual installations, verify no resources are created, validate cost estimates"
+          },
+          {
+            "id": 5,
+            "title": "Add progress tracking and error recovery",
+            "description": "Implement progress monitoring with automatic error recovery and rollback capabilities",
+            "dependencies": [
+              3
+            ],
+            "details": "Create progress tracking system with step-by-step status reporting, implement automatic retry logic for transient failures, add rollback mechanisms for failed installations, and include resume capability for interrupted bootstrap processes.",
+            "status": "pending",
+            "testStrategy": "Test error recovery scenarios, verify rollback functionality, validate resume capability after interruption"
+          },
+          {
+            "id": 6,
+            "title": "Create comprehensive validation testing",
+            "description": "Implement end-to-end validation suite for complete bootstrap verification",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Create validation tests for complete cluster functionality including Knative service deployment, TLS certificate generation, DNS record creation, ingress routing, and external connectivity. Include performance benchmarks and security validation.",
+            "status": "pending",
+            "testStrategy": "Run validation suite on fresh clusters, verify all components function correctly, validate security configurations"
+          },
+          {
+            "id": 7,
+            "title": "Implement setup documentation generation",
+            "description": "Create automated documentation generation for cluster configuration and setup details",
+            "dependencies": [
+              6
+            ],
+            "details": "Implement documentation generator that creates cluster setup summary, configuration details, access instructions, and maintenance procedures. Include generated credentials, endpoints, and operational runbooks in markdown format.",
+            "status": "pending",
+            "testStrategy": "Verify documentation accuracy and completeness, test generated instructions with fresh users"
+          },
+          {
+            "id": 8,
+            "title": "Add troubleshooting and rollback capabilities",
+            "description": "Implement comprehensive troubleshooting tools and rollback mechanisms for failed deployments",
+            "dependencies": [
+              7
+            ],
+            "details": "Create troubleshooting command with diagnostic checks, log collection, and common issue resolution. Implement complete rollback functionality that removes all created resources and restores previous state. Include debugging tools for component-specific issues.",
+            "status": "pending",
+            "testStrategy": "Test troubleshooting accuracy for common issues, verify complete rollback functionality, validate diagnostic tools"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Create Sample Application and Documentation",
+        "description": "Deploy reference application and create comprehensive user documentation",
+        "details": "Create sample static site and API application demonstrating ClusterKit features. Build Docker images and publish to GitHub Container Registry. Create comprehensive documentation covering: setup guide, CLI reference, troubleshooting, cost optimization tips, and migration guides. Include Cloudflare configuration instructions and GKE Autopilot best practices. Add example manifests and Terraform configurations.",
+        "testStrategy": "Test sample applications deployment, verify documentation accuracy, validate all commands work as documented",
+        "priority": "medium",
+        "dependencies": [
+          7,
+          8,
+          9,
+          14
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create sample static site and API applications",
+            "description": "Develop a static frontend application and REST API backend that demonstrate ClusterKit's serverless capabilities and integration features",
+            "dependencies": [],
+            "details": "Create a sample static site (React/Vue/vanilla HTML) and a REST API (Go/Node.js) that showcases ClusterKit features like auto-scaling, load balancing, and service discovery. The static site should include interactive elements that call the API. Both applications should be designed to run as Knative services and demonstrate scale-to-zero behavior. Include health check endpoints and proper logging.",
+            "status": "pending",
+            "testStrategy": "Test applications locally first, then deploy to ClusterKit cluster and verify auto-scaling behavior, load balancing, and service communication"
+          },
+          {
+            "id": 2,
+            "title": "Build and publish Docker images to GitHub Container Registry",
+            "description": "Create Dockerfiles for sample applications and set up CI/CD pipeline to build and publish images to GitHub Container Registry",
+            "dependencies": [
+              1
+            ],
+            "details": "Create multi-stage Dockerfiles for both static site and API applications optimized for size and security. Set up GitHub Actions workflow to automatically build and push images to GitHub Container Registry (ghcr.io) on code changes. Include proper image tagging strategy with semantic versioning and latest tags. Configure registry authentication and ensure images are publicly accessible for documentation examples.",
+            "status": "pending",
+            "testStrategy": "Verify images build successfully, test image pulls from registry, validate images run correctly in local Docker environment"
+          },
+          {
+            "id": 3,
+            "title": "Create comprehensive setup and CLI reference documentation",
+            "description": "Write detailed setup guides and complete CLI command reference covering all ClusterKit functionality",
+            "dependencies": [],
+            "details": "Create documentation covering: complete installation guide from prerequisites to first deployment, step-by-step cluster setup with Terraform, CLI installation and configuration, comprehensive command reference with examples for all ClusterKit CLI commands, configuration file formats and options, authentication and credentials setup. Use markdown format with clear sections, code examples, and troubleshooting tips for common issues.",
+            "status": "pending",
+            "testStrategy": "Follow documentation steps on fresh environment, verify all commands work as documented, test with different OS platforms"
+          },
+          {
+            "id": 4,
+            "title": "Develop troubleshooting guides and best practices documentation",
+            "description": "Create comprehensive troubleshooting guides, cost optimization tips, migration guides, and operational best practices",
+            "dependencies": [],
+            "details": "Develop documentation covering: common issues and their solutions, debugging techniques for Knative services, cost optimization strategies for GKE Autopilot, migration guides from other platforms, monitoring and observability best practices, security configuration guidelines, backup and disaster recovery procedures, performance tuning recommendations. Include Cloudflare-specific configuration instructions and GKE Autopilot optimization tips.",
+            "status": "pending",
+            "testStrategy": "Validate troubleshooting steps reproduce and solve actual issues, test cost optimization recommendations, verify migration procedures"
+          },
+          {
+            "id": 5,
+            "title": "Create example manifests and validate all documented commands",
+            "description": "Develop comprehensive example manifests and Terraform configurations, then validate all documentation through end-to-end testing",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Create example Kubernetes manifests for various application types, Terraform configuration examples for different deployment scenarios, sample Knative service definitions, ingress configurations, and monitoring setups. Include examples for common use cases like web applications, APIs, batch jobs, and microservices. Perform comprehensive validation by following all documentation steps, testing every CLI command, and verifying all example configurations work correctly.",
+            "status": "pending",
+            "testStrategy": "Deploy all example manifests to test cluster, execute every documented command and verify expected outcomes, test examples on clean environment following documentation"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-10-27T08:24:54.008Z",
+      "updated": "2025-11-02T00:52:30.731Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

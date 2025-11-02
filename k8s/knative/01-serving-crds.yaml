@@ -1,0 +1,313 @@
+# Knative Serving CRDs - Version 1.15.0
+# Source: https://github.com/knative/serving/releases/download/knative-v1.15.0/serving-crds.yaml
+# Apply this file first to install Custom Resource Definitions
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: certificates.networking.internal.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: networking.internal.knative.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                dnsNames:
+                  type: array
+                  items:
+                    type: string
+                secretName:
+                  type: string
+            status:
+              type: object
+  names:
+    kind: Certificate
+    plural: certificates
+    singular: certificate
+    categories:
+      - knative-internal
+      - networking
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: configurations.serving.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: serving.knative.dev
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                template:
+                  type: object
+            status:
+              type: object
+  names:
+    kind: Configuration
+    plural: configurations
+    singular: configuration
+    shortNames:
+      - config
+      - cfg
+    categories:
+      - all
+      - knative
+      - serving
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: revisions.serving.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: serving.knative.dev
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+            status:
+              type: object
+  names:
+    kind: Revision
+    plural: revisions
+    singular: revision
+    shortNames:
+      - rev
+    categories:
+      - all
+      - knative
+      - serving
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: routes.serving.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: serving.knative.dev
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+            status:
+              type: object
+  names:
+    kind: Route
+    plural: routes
+    singular: route
+    shortNames:
+      - rt
+    categories:
+      - all
+      - knative
+      - serving
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: services.serving.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: serving.knative.dev
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                template:
+                  type: object
+                traffic:
+                  type: array
+                  items:
+                    type: object
+            status:
+              type: object
+  names:
+    kind: Service
+    plural: services
+    singular: service
+    shortNames:
+      - kservice
+      - ksvc
+    categories:
+      - all
+      - knative
+      - serving
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: domainmappings.serving.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: serving.knative.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: false
+      schema:
+        openAPIV3Schema:
+          type: object
+    - name: v1beta1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                ref:
+                  type: object
+            status:
+              type: object
+  names:
+    kind: DomainMapping
+    plural: domainmappings
+    singular: domainmapping
+    shortNames:
+      - dm
+    categories:
+      - all
+      - knative
+      - serving
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ingresses.networking.internal.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: networking.internal.knative.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+            status:
+              type: object
+  names:
+    kind: Ingress
+    plural: ingresses
+    singular: ingress
+    shortNames:
+      - kingress
+      - king
+    categories:
+      - knative-internal
+      - networking
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: serverlessservices.networking.internal.knative.dev
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/version: "1.15.0"
+    knative.dev/crd-install: "true"
+spec:
+  group: networking.internal.knative.dev
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+            status:
+              type: object
+  names:
+    kind: ServerlessService
+    plural: serverlessservices
+    singular: serverlessservice
+    shortNames:
+      - sks
+    categories:
+      - knative-internal
+      - networking
+  scope: Namespaced

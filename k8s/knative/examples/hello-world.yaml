@@ -1,0 +1,32 @@
+# Example Knative Service - Hello World
+# Demonstrates scale-to-zero behavior and basic Knative Service configuration
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: hello-world
+  namespace: default
+spec:
+  template:
+    metadata:
+      annotations:
+        # Autoscaling configuration
+        autoscaling.knative.dev/min-scale: "0"  # Scale to zero when idle
+        autoscaling.knative.dev/max-scale: "10"  # Maximum 10 pods
+        autoscaling.knative.dev/target: "10"  # Target 10 concurrent requests per pod
+        autoscaling.knative.dev/metric: "concurrency"  # Use concurrency for autoscaling
+    spec:
+      containers:
+      - image: gcr.io/knative-samples/helloworld-go
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TARGET
+          value: "ClusterKit on GKE Autopilot"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

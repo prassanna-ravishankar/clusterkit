@@ -1,0 +1,72 @@
+# Knative Autoscaling Configuration
+# Optimized for ClusterKit scale-to-zero and cost efficiency
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-autoscaler
+  namespace: knative-serving
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/component: autoscaler
+data:
+  # Scale to zero configuration
+  enable-scale-to-zero: "true"
+  scale-to-zero-grace-period: "60s"  # Wait 60s before scaling to zero
+  scale-to-zero-pod-retention-period: "0s"  # No retention after grace period
+
+  # Concurrency settings
+  container-concurrency-target-default: "10"  # Target 10 concurrent requests per pod
+  container-concurrency-target-percentage: "70"  # Target 70% of container concurrency
+
+  # Request-based autoscaling
+  requests-per-second-target-default: "200"  # Alternative RPS target
+  target-burst-capacity: "200"  # Extra capacity for traffic spikes
+
+  # Scaling behavior
+  max-scale-up-rate: "10.0"  # Max 10x scale-up per autoscaling decision
+  max-scale-down-rate: "2.0"  # Max 2x scale-down per autoscaling decision
+  max-scale-limit: "100"  # Global maximum scale (can be overridden per service)
+
+  # Stability windows
+  stable-window: "60s"  # Time window for stable metrics before scaling
+  panic-window-percentage: "10.0"  # Panic mode at 10% of stable window
+  panic-threshold-percentage: "200.0"  # Panic at 200% of target concurrency
+
+  # Tick intervals
+  tick-interval: "2s"  # How often autoscaler evaluates metrics
+
+  # Metrics configuration
+  metrics-domain: "knative.dev/serving"
+
+  # Autoscaler modes
+  pod-autoscaler-class: "kpa.autoscaling.knative.dev"  # KPA (Knative Pod Autoscaler)
+
+  # GKE Autopilot optimizations
+  allow-zero-initial-scale: "true"  # Allow services to start at 0 replicas
+  initial-scale: "1"  # Default initial scale for new services
+---
+# Deployment configuration for autoscaling
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-deployment
+  namespace: knative-serving
+  labels:
+    app.kubernetes.io/name: knative-serving
+    app.kubernetes.io/component: controller
+data:
+  # Queue proxy settings
+  queue-sidecar-image: gcr.io/knative-releases/knative.dev/serving/cmd/queue@sha256:latest
+
+  # Progress deadline
+  progress-deadline: "600s"  # 10 minutes for deployment to become ready
+
+  # Revision timeout
+  revision-timeout-seconds: "300"  # 5 minutes max request timeout
+
+  # Maximum replicas for initial deployment
+  max-scale: "100"
+
+  # Minimum replicas (0 for scale-to-zero)
+  min-scale: "0"

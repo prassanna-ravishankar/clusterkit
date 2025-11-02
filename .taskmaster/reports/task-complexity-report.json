@@ -1,0 +1,133 @@
+{
+	"meta": {
+		"generatedAt": "2025-10-27T08:38:28.567Z",
+		"tasksAnalyzed": 15,
+		"totalTasks": 15,
+		"analysisCount": 15,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Setup Terraform Infrastructure Foundation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into subtasks for: 1) Create terraform directory structure and provider configuration, 2) Implement GKE Autopilot module with required APIs and IAM, 3) Configure static IP resource for LoadBalancer, 4) Create IAM service accounts for ExternalDNS and cert-manager, 5) Add variables.tf and outputs.tf for proper parameterization",
+			"reasoning": "Moderate complexity requiring knowledge of GCP APIs, Terraform modules, and IAM. Involves multiple resources but follows standard patterns. Project is greenfield with no existing terraform code."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Install Knative Serving Platform",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into subtasks for: 1) Research and select appropriate Knative Serving version and networking layer, 2) Create Helm chart or YAML manifests for Knative CRDs, 3) Configure Knative Serving core components, 4) Set up networking layer (Kourier or nginx), 5) Configure autoscaling parameters and policies, 6) Create validation tests for scale-to-zero behavior",
+			"reasoning": "High complexity due to Knative's sophisticated architecture and configuration requirements. Requires understanding of CRDs, networking layers, and autoscaling. No existing k8s infrastructure to build upon."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Configure NGINX Ingress Controller",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into subtasks for: 1) Install NGINX Ingress Controller via Helm, 2) Configure LoadBalancer service with static IP integration, 3) Set up Cloudflare IP forwarding and real IP handling, 4) Configure SSL passthrough and backend routing, 5) Test ingress functionality with sample services",
+			"reasoning": "Moderate-high complexity requiring Helm chart configuration, networking setup, and Cloudflare integration. Depends on infrastructure from task 1 and needs to work with Knative."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Deploy cert-manager for Automatic TLS",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into subtasks for: 1) Install cert-manager CRDs and Helm chart, 2) Create ClusterIssuer for Let's Encrypt production environment, 3) Create ClusterIssuer for Let's Encrypt staging environment, 4) Test certificate issuance and renewal with sample Certificate resource",
+			"reasoning": "Moderate complexity. cert-manager is well-documented with standard patterns, but requires proper ACME configuration and testing. Depends on ingress being properly configured."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Setup ExternalDNS with Cloudflare Provider",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into subtasks for: 1) Create Cloudflare API token with proper permissions, 2) Deploy ExternalDNS with Cloudflare provider configuration, 3) Configure RBAC for service and ingress watching, 4) Set up domain filtering and ownership policies, 5) Test DNS record creation and cleanup with sample services",
+			"reasoning": "Moderate-high complexity requiring external API integration, proper RBAC setup, and understanding of DNS management. Critical for automation but has specific configuration requirements."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Create ClusterKit CLI Foundation",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Break down into subtasks for: 1) Initialize Go project with proper module structure, 2) Set up Cobra CLI framework with core command structure, 3) Integrate client-go for Kubernetes API access, 4) Implement configuration management with Viper, 5) Add structured logging with logrus, 6) Create kubectl config integration and context management, 7) Implement basic CLI commands (bootstrap, create, status, delete) with placeholder functionality",
+			"reasoning": "High complexity involving CLI design, Kubernetes client integration, and multiple Go libraries. Requires understanding of client-go, proper error handling, and CLI UX. This is greenfield development with no existing Go code."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Implement Knative Service Creation",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into subtasks for: 1) Implement Knative Service manifest generation with proper resource specifications, 2) Add domain configuration and validation logic, 3) Integrate with cert-manager for automatic Certificate creation, 4) Implement autoscaling annotation management, 5) Add support for --min-scale flag and validation, 6) Create end-to-end testing for service creation workflow",
+			"reasoning": "High complexity requiring deep understanding of Knative APIs, integration with multiple k8s components, and complex CLI logic. Depends on multiple infrastructure components being properly configured."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Add PostgreSQL StatefulSet Support",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into subtasks for: 1) Create PostgreSQL StatefulSet manifest templates with proper resource limits, 2) Implement persistent volume claim configuration, 3) Set up secret generation for database credentials, 4) Configure GCP disk snapshot backup automation, 5) Implement 'clusterkit db create' command, 6) Add connection string generation and validation",
+			"reasoning": "High complexity involving StatefulSet management, persistent storage, backup strategies, and secret management. Requires understanding of PostgreSQL configuration and Kubernetes storage."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Implement Database Attachment to Apps",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into subtasks for: 1) Implement secret injection logic for database connections, 2) Create DATABASE_URL generation for PostgreSQL and MySQL formats, 3) Set up RBAC for cross-namespace secret access, 4) Implement 'clusterkit db attach' command, 5) Add validation and testing for database connectivity",
+			"reasoning": "Moderate-high complexity requiring RBAC configuration, secret management across namespaces, and support for multiple database engines. Builds on existing CLI and database infrastructure."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Add Multi-Domain Support",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into subtasks for: 1) Implement domain validation and conflict detection, 2) Update Knative Service traffic configuration for multiple domains, 3) Integrate automatic Certificate resource creation for additional domains, 4) Implement 'clusterkit domain add' command with proper error handling",
+			"reasoning": "Moderate complexity building on existing Knative and cert-manager integration. Requires understanding of Knative traffic routing but follows established patterns."
+		},
+		{
+			"taskId": 11,
+			"taskTitle": "Implement Status and Monitoring Commands",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into subtasks for: 1) Implement application health status checking, 2) Integrate with GCP Cloud Monitoring API for metrics, 3) Create cost estimation logic based on resource usage, 4) Implement certificate validity checking, 5) Add log aggregation from Cloud Logging, 6) Create 'clusterkit status' and 'clusterkit logs' commands",
+			"reasoning": "High complexity requiring integration with multiple GCP APIs, cost calculation logic, and aggregating status from various Kubernetes resources. Involves external API calls and complex data presentation."
+		},
+		{
+			"taskId": 12,
+			"taskTitle": "Add Traditional Deployment Mode",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into subtasks for: 1) Create Deployment manifest templates for traditional workloads, 2) Implement Service and Ingress resource creation, 3) Configure HorizontalPodAutoscaler for traditional deployments, 4) Add --traditional flag support to create command, 5) Integrate with existing cert-manager and ExternalDNS automation",
+			"reasoning": "Moderate-high complexity requiring parallel deployment path alongside Knative. Involves HPA configuration and ensuring consistency with existing automation for DNS and TLS."
+		},
+		{
+			"taskId": 13,
+			"taskTitle": "Implement Cloudflare Edge Configuration",
+			"complexityScore": 4,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down into subtasks for: 1) Create Terraform module for Cloudflare page rules and caching configuration, 2) Implement security rules and rate limiting via Terraform, 3) Create documentation for DNS proxy setup and SSL/TLS configuration",
+			"reasoning": "Low-moderate complexity involving Terraform Cloudflare provider configuration. Well-documented APIs and standard patterns, but requires understanding of edge optimization."
+		},
+		{
+			"taskId": 14,
+			"taskTitle": "Add Bootstrap Command and Automation",
+			"complexityScore": 9,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Break down into subtasks for: 1) Implement preflight checks for GCP permissions and APIs, 2) Add Cloudflare API access validation, 3) Create orchestration logic for component installation order, 4) Implement dry-run mode for validation, 5) Add progress tracking and error recovery, 6) Create comprehensive validation testing, 7) Implement setup documentation generation, 8) Add troubleshooting and rollback capabilities",
+			"reasoning": "Very high complexity requiring orchestration of all previous components, error handling, validation, and recovery mechanisms. This is the most complex task as it integrates everything and requires robust error handling."
+		},
+		{
+			"taskId": 15,
+			"taskTitle": "Create Sample Application and Documentation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into subtasks for: 1) Create sample static site and API applications, 2) Build and publish Docker images to GitHub Container Registry, 3) Create comprehensive setup and CLI reference documentation, 4) Develop troubleshooting guides and best practices, 5) Create example manifests and validate all documented commands",
+			"reasoning": "Moderate-high complexity involving application development, CI/CD setup, comprehensive documentation writing, and validation of entire system. Requires testing all implemented features end-to-end."
+		}
+	]
+}
