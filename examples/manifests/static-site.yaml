@@ -1,0 +1,69 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: static-site
+  namespace: default
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to zero after 5 minutes of no traffic
+        autoscaling.knative.dev/scale-to-zero-pod-retention-period: "5m"
+        # Minimum number of pods
+        autoscaling.knative.dev/minScale: "0"
+        # Maximum number of pods
+        autoscaling.knative.dev/maxScale: "10"
+        # Target concurrent requests per pod
+        autoscaling.knative.dev/target: "10"
+    spec:
+      containers:
+      - image: ghcr.io/clusterkit/clusterkit/static-site:latest
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 1
+          periodSeconds: 5
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: static-site
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    external-dns.alpha.kubernetes.io/hostname: "demo.example.com"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - demo.example.com
+    secretName: static-site-tls
+  rules:
+  - host: demo.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: static-site
+            port:
+              number: 80

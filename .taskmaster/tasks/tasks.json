@@ -1029,7 +1029,7 @@
           9,
           14
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -1037,7 +1037,7 @@
             "description": "Develop a static frontend application and REST API backend that demonstrate ClusterKit's serverless capabilities and integration features",
             "dependencies": [],
             "details": "Create a sample static site (React/Vue/vanilla HTML) and a REST API (Go/Node.js) that showcases ClusterKit features like auto-scaling, load balancing, and service discovery. The static site should include interactive elements that call the API. Both applications should be designed to run as Knative services and demonstrate scale-to-zero behavior. Include health check endpoints and proper logging.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test applications locally first, then deploy to ClusterKit cluster and verify auto-scaling behavior, load balancing, and service communication"
           },
           {
@@ -1048,7 +1048,7 @@
               1
             ],
             "details": "Create multi-stage Dockerfiles for both static site and API applications optimized for size and security. Set up GitHub Actions workflow to automatically build and push images to GitHub Container Registry (ghcr.io) on code changes. Include proper image tagging strategy with semantic versioning and latest tags. Configure registry authentication and ensure images are publicly accessible for documentation examples.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify images build successfully, test image pulls from registry, validate images run correctly in local Docker environment"
           },
           {
@@ -1057,7 +1057,7 @@
             "description": "Write detailed setup guides and complete CLI command reference covering all ClusterKit functionality",
             "dependencies": [],
             "details": "Create documentation covering: complete installation guide from prerequisites to first deployment, step-by-step cluster setup with Terraform, CLI installation and configuration, comprehensive command reference with examples for all ClusterKit CLI commands, configuration file formats and options, authentication and credentials setup. Use markdown format with clear sections, code examples, and troubleshooting tips for common issues.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Follow documentation steps on fresh environment, verify all commands work as documented, test with different OS platforms"
           },
           {
@@ -1066,7 +1066,7 @@
             "description": "Create comprehensive troubleshooting guides, cost optimization tips, migration guides, and operational best practices",
             "dependencies": [],
             "details": "Develop documentation covering: common issues and their solutions, debugging techniques for Knative services, cost optimization strategies for GKE Autopilot, migration guides from other platforms, monitoring and observability best practices, security configuration guidelines, backup and disaster recovery procedures, performance tuning recommendations. Include Cloudflare-specific configuration instructions and GKE Autopilot optimization tips.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate troubleshooting steps reproduce and solve actual issues, test cost optimization recommendations, verify migration procedures"
           },
           {
@@ -1080,7 +1080,7 @@
               4
             ],
             "details": "Create example Kubernetes manifests for various application types, Terraform configuration examples for different deployment scenarios, sample Knative service definitions, ingress configurations, and monitoring setups. Include examples for common use cases like web applications, APIs, batch jobs, and microservices. Perform comprehensive validation by following all documentation steps, testing every CLI command, and verifying all example configurations work correctly.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Deploy all example manifests to test cluster, execute every documented command and verify expected outcomes, test examples on clean environment following documentation"
           }
         ]
@@ -1088,7 +1088,7 @@
     ],
     "metadata": {
       "created": "2025-10-27T08:24:54.008Z",
-      "updated": "2025-11-03T09:04:56.893Z",
+      "updated": "2025-11-03T09:08:14.827Z",
       "description": "Tasks for master context"
     }
   }

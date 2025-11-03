@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClusterKit Demo - Static Site</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .feature p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .api-demo {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .api-demo h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .error {
+            color: #dc3545;
+        }
+
+        .success {
+            color: #28a745;
+        }
+
+        .loading {
+            color: #ffc107;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #666;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 ClusterKit Demo</h1>
+        <p class="subtitle">Serverless Kubernetes Platform on GKE Autopilot</p>
+
+        <div class="features">
+            <div class="feature">
+                <h3>⚡ Scale to Zero</h3>
+                <p>Applications automatically scale down to zero when idle, reducing costs dramatically.</p>
+            </div>
+            <div class="feature">
+                <h3>🔒 Auto TLS</h3>
+                <p>Automatic HTTPS certificates via Let's Encrypt and cert-manager integration.</p>
+            </div>
+            <div class="feature">
+                <h3>🌐 DNS Management</h3>
+                <p>Automated DNS record creation through Cloudflare ExternalDNS integration.</p>
+            </div>
+            <div class="feature">
+                <h3>📦 Simple Deploy</h3>
+                <p>Deploy containers with a single command using our intuitive CLI.</p>
+            </div>
+        </div>
+
+        <div class="api-demo">
+            <h2>API Integration Demo</h2>
+            <p style="margin-bottom: 15px; color: #666;">
+                Test the API backend to see scale-to-zero and load balancing in action:
+            </p>
+            <button id="testBtn" onclick="testAPI()">Test API Connection</button>
+            <div id="response" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by <strong>Knative</strong>, <strong>GKE Autopilot</strong>, and <strong>Cloudflare</strong></p>
+            <p style="margin-top: 10px;">
+                <a href="https://github.com/clusterkit/clusterkit" target="_blank">View on GitHub</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const btn = document.getElementById('testBtn');
+            const responseDiv = document.getElementById('response');
+
+            btn.disabled = true;
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response loading';
+            responseDiv.textContent = 'Calling API... (may take a few seconds if scaled to zero)';
+
+            try {
+                const apiUrl = window.location.hostname.includes('localhost')
+                    ? 'http://localhost:8080/api/health'
+                    : '/api/health';
+
+                const startTime = Date.now();
+                const response = await fetch(apiUrl);
+                const duration = Date.now() - startTime;
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                responseDiv.className = 'response success';
+                responseDiv.textContent = JSON.stringify({
+                    status: 'success',
+                    duration: `${duration}ms`,
+                    response: data
+                }, null, 2);
+
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = JSON.stringify({
+                    status: 'error',
+                    message: error.message,
+                    note: 'Make sure the API service is deployed and accessible'
+                }, null, 2);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Show connection info on load
+        window.addEventListener('load', () => {
+            console.log('ClusterKit Demo Site Loaded');
+            console.log('Environment:', window.location.hostname);
+        });
+    </script>
+</body>
+</html>
