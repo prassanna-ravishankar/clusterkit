@@ -81,6 +81,21 @@ func (t *TerraformComponent) Apply() error {
 	}
 
 	fmt.Println("✓ Terraform infrastructure created successfully")
+
+	// Fetch cluster credentials after creation
+	fmt.Println("Fetching cluster credentials...")
+	credsCmd := exec.CommandContext(ctx, "gcloud", "container", "clusters", "get-credentials",
+		t.clusterName,
+		"--region", t.region,
+		"--project", t.projectID,
+	)
+	credsCmd.Stdout = os.Stdout
+	credsCmd.Stderr = os.Stderr
+	if err := credsCmd.Run(); err != nil {
+		return fmt.Errorf("failed to fetch cluster credentials: %w", err)
+	}
+
+	fmt.Println("✓ Cluster credentials configured")
 	return nil
 }
 
