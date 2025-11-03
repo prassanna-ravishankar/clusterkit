@@ -81,8 +81,8 @@ spec:
         - --source=knative  # Support Knative Services
         - --provider=cloudflare
 
-        # Domain filtering - only manage specific domains
-        - --domain-filter=example.com  # TODO: Replace with your domain
+        # No domain filter - manages all domains in annotations
+        # Add --domain-filter=yourdomain.com to restrict to specific domains
 
         # Cloudflare proxy mode (orange cloud)
         - --cloudflare-proxied  # Enable Cloudflare CDN/WAF

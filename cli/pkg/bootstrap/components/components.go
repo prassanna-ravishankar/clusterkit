@@ -779,7 +779,7 @@ func (e *ExternalDNSComponent) Install() error {
 		},
 		Type: corev1.SecretTypeOpaque,
 		StringData: map[string]string{
-			"cloudflare_api_token": e.cloudflareToken,
+			"apiToken": e.cloudflareToken,
 		},
 	}
 
