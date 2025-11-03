@@ -249,67 +249,81 @@ func NewKnativeComponent(kubeconfig string) *KnativeComponent {
 	}
 }
 
-// Install installs Knative Serving using Helm
+// Install installs Knative Serving using Helm (via Knative Operator)
 func (k *KnativeComponent) Install() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// Add Knative Helm repository
-	repoCmd := exec.CommandContext(ctx, "helm", "repo", "add", "knative",
-		"https://knative.github.io/helm-charts")
-	repoCmd.Stdout = os.Stdout
-	repoCmd.Stderr = os.Stderr
-	if err := repoCmd.Run(); err != nil {
-		return fmt.Errorf("failed to add Knative Helm repo: %w", err)
-	}
-
-	// Update Helm repositories
-	updateCmd := exec.CommandContext(ctx, "helm", "repo", "update")
-	updateCmd.Stdout = os.Stdout
-	updateCmd.Stderr = os.Stderr
-	if err := updateCmd.Run(); err != nil {
-		return fmt.Errorf("failed to update Helm repos: %w", err)
-	}
-
-	// Install Knative Serving with Helm
-	installCmd := exec.CommandContext(ctx, "helm", "install", "knative-serving",
-		"knative/serving",
-		"--namespace", "knative-serving",
-		"--create-namespace",
-		"--wait",
-		"--timeout", "10m")
-
+	// Step 1: Install Knative Operator using kubectl
+	fmt.Println("Installing Knative Operator...")
+	operatorURL := "https://github.com/knative/operator/releases/download/knative-v1.15.0/operator.yaml"
+	operatorCmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", operatorURL)
 	if k.kubeconfig != "" {
-		installCmd.Args = append(installCmd.Args, "--kubeconfig", k.kubeconfig)
+		operatorCmd.Args = append(operatorCmd.Args, "--kubeconfig", k.kubeconfig)
+	}
+	operatorCmd.Stdout = os.Stdout
+	operatorCmd.Stderr = os.Stderr
+	if err := operatorCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Knative Operator: %w", err)
 	}
 
-	installCmd.Stdout = os.Stdout
-	installCmd.Stderr = os.Stderr
-	if err := installCmd.Run(); err != nil {
-		return fmt.Errorf("failed to install Knative Serving: %w", err)
+	// Wait for operator to be ready
+	fmt.Println("Waiting for Knative Operator to be ready...")
+	time.Sleep(30 * time.Second)
+
+	// Step 2: Create KnativeServing CR to install Knative Serving
+	fmt.Println("Installing Knative Serving via Operator...")
+	knativeServingYAML := `apiVersion: v1
+kind: Namespace
+metadata:
+  name: knative-serving
+---
+apiVersion: operator.knative.dev/v1beta1
+kind: KnativeServing
+metadata:
+  name: knative-serving
+  namespace: knative-serving
+`
+	applyCmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", "-")
+	if k.kubeconfig != "" {
+		applyCmd.Args = append(applyCmd.Args, "--kubeconfig", k.kubeconfig)
+	}
+	applyCmd.Stdin = strings.NewReader(knativeServingYAML)
+	applyCmd.Stdout = os.Stdout
+	applyCmd.Stderr = os.Stderr
+	if err := applyCmd.Run(); err != nil {
+		return fmt.Errorf("failed to create KnativeServing resource: %w", err)
 	}
 
 	fmt.Println("✓ Knative Serving installed successfully")
 	return nil
 }
 
-// Uninstall removes Knative Serving using Helm
+// Uninstall removes Knative Serving and Operator
 func (k *KnativeComponent) Uninstall() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	uninstallCmd := exec.CommandContext(ctx, "helm", "uninstall", "knative-serving",
-		"--namespace", "knative-serving")
-
+	// Delete KnativeServing resource
+	deleteServingCmd := exec.CommandContext(ctx, "kubectl", "delete", "knativeserving",
+		"knative-serving", "-n", "knative-serving", "--ignore-not-found=true")
 	if k.kubeconfig != "" {
-		uninstallCmd.Args = append(uninstallCmd.Args, "--kubeconfig", k.kubeconfig)
+		deleteServingCmd.Args = append(deleteServingCmd.Args, "--kubeconfig", k.kubeconfig)
 	}
+	deleteServingCmd.Stdout = os.Stdout
+	deleteServingCmd.Stderr = os.Stderr
+	_ = deleteServingCmd.Run()
 
-	uninstallCmd.Stdout = os.Stdout
-	uninstallCmd.Stderr = os.Stderr
-	if err := uninstallCmd.Run(); err != nil {
-		return fmt.Errorf("failed to uninstall Knative Serving: %w", err)
+	// Delete Knative Operator
+	operatorURL := "https://github.com/knative/operator/releases/download/knative-v1.15.0/operator.yaml"
+	deleteOpCmd := exec.CommandContext(ctx, "kubectl", "delete", "-f", operatorURL,
+		"--ignore-not-found=true")
+	if k.kubeconfig != "" {
+		deleteOpCmd.Args = append(deleteOpCmd.Args, "--kubeconfig", k.kubeconfig)
 	}
+	deleteOpCmd.Stdout = os.Stdout
+	deleteOpCmd.Stderr = os.Stderr
+	_ = deleteOpCmd.Run()
 
 	// Delete namespace
 	nsCmd := exec.CommandContext(ctx, "kubectl", "delete", "namespace", "knative-serving",
@@ -319,7 +333,7 @@ func (k *KnativeComponent) Uninstall() error {
 	}
 	nsCmd.Stdout = os.Stdout
 	nsCmd.Stderr = os.Stderr
-	_ = nsCmd.Run() // Ignore errors
+	_ = nsCmd.Run()
 
 	fmt.Println("✓ Knative Serving uninstalled successfully")
 	return nil
