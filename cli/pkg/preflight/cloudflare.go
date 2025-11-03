@@ -112,8 +112,10 @@ func (c *CloudflarePreflightChecker) checkToken() CheckResult {
 		}
 	}
 
-	// Verify token by attempting to get user info
-	user, err := api.UserDetails(c.ctx)
+	// Verify token by checking if it's valid
+	// Note: UserDetails requires User:Read permission which isn't in "Edit zone DNS" template
+	// Instead, we'll verify by trying to list zones
+	_, err = api.ListZones(c.ctx)
 	if err != nil {
 		return CheckResult{
 			Name:    "Cloudflare API Token",
@@ -123,6 +125,7 @@ func (c *CloudflarePreflightChecker) checkToken() CheckResult {
   - Check token hasn't expired
   - Verify token wasn't revoked
   - Ensure token is copied correctly (no extra spaces)
+  - Token needs Zone:Zone:Read permission (included in "Edit zone DNS" template)
   - Create new token at: https://dash.cloudflare.com/profile/api-tokens`,
 		}
 	}
@@ -130,7 +133,7 @@ func (c *CloudflarePreflightChecker) checkToken() CheckResult {
 	return CheckResult{
 		Name:    "Cloudflare API Token",
 		Passed:  true,
-		Message: fmt.Sprintf("Successfully authenticated as: %s (%s)", user.Email, user.ID),
+		Message: "Successfully authenticated and can access zones",
 	}
 }
 
