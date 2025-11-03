@@ -220,78 +220,77 @@ func NewKnativeComponent(kubeconfig string) *KnativeComponent {
 	}
 }
 
-// Install installs Knative Serving
+// Install installs Knative Serving using Helm
 func (k *KnativeComponent) Install() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	manifestsPath, err := filepath.Abs(k.manifestsDir)
-	if err != nil {
-		return fmt.Errorf("failed to resolve manifests directory: %w", err)
+	// Add Knative Helm repository
+	repoCmd := exec.CommandContext(ctx, "helm", "repo", "add", "knative",
+		"https://knative.github.io/helm-charts")
+	repoCmd.Stdout = os.Stdout
+	repoCmd.Stderr = os.Stderr
+	if err := repoCmd.Run(); err != nil {
+		return fmt.Errorf("failed to add Knative Helm repo: %w", err)
 	}
 
-	// Apply Knative CRDs
-	crdCmd := exec.CommandContext(ctx, "kubectl", "apply",
-		"--kubeconfig", k.kubeconfig,
-		"-f", filepath.Join(manifestsPath, "serving-crds.yaml"),
-	)
-	crdCmd.Stdout = os.Stdout
-	crdCmd.Stderr = os.Stderr
-	if err := crdCmd.Run(); err != nil {
-		return fmt.Errorf("failed to apply Knative CRDs: %w", err)
+	// Update Helm repositories
+	updateCmd := exec.CommandContext(ctx, "helm", "repo", "update")
+	updateCmd.Stdout = os.Stdout
+	updateCmd.Stderr = os.Stderr
+	if err := updateCmd.Run(); err != nil {
+		return fmt.Errorf("failed to update Helm repos: %w", err)
 	}
 
-	// Wait a moment for CRDs to be established
-	time.Sleep(5 * time.Second)
+	// Install Knative Serving with Helm
+	installCmd := exec.CommandContext(ctx, "helm", "install", "knative-serving",
+		"knative/serving",
+		"--namespace", "knative-serving",
+		"--create-namespace",
+		"--wait",
+		"--timeout", "10m")
 
-	// Apply Knative core components
-	coreCmd := exec.CommandContext(ctx, "kubectl", "apply",
-		"--kubeconfig", k.kubeconfig,
-		"-f", filepath.Join(manifestsPath, "serving-core.yaml"),
-	)
-	coreCmd.Stdout = os.Stdout
-	coreCmd.Stderr = os.Stderr
-	if err := coreCmd.Run(); err != nil {
-		return fmt.Errorf("failed to apply Knative core: %w", err)
+	if k.kubeconfig != "" {
+		installCmd.Args = append(installCmd.Args, "--kubeconfig", k.kubeconfig)
+	}
+
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Knative Serving: %w", err)
 	}
 
 	fmt.Println("✓ Knative Serving installed successfully")
 	return nil
 }
 
-// Uninstall removes Knative Serving
+// Uninstall removes Knative Serving using Helm
 func (k *KnativeComponent) Uninstall() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	manifestsPath, err := filepath.Abs(k.manifestsDir)
-	if err != nil {
-		return fmt.Errorf("failed to resolve manifests directory: %w", err)
+	uninstallCmd := exec.CommandContext(ctx, "helm", "uninstall", "knative-serving",
+		"--namespace", "knative-serving")
+
+	if k.kubeconfig != "" {
+		uninstallCmd.Args = append(uninstallCmd.Args, "--kubeconfig", k.kubeconfig)
 	}
 
-	// Delete Knative core components first
-	coreCmd := exec.CommandContext(ctx, "kubectl", "delete",
-		"--kubeconfig", k.kubeconfig,
-		"-f", filepath.Join(manifestsPath, "serving-core.yaml"),
-		"--ignore-not-found=true",
-	)
-	coreCmd.Stdout = os.Stdout
-	coreCmd.Stderr = os.Stderr
-	if err := coreCmd.Run(); err != nil {
-		return fmt.Errorf("failed to delete Knative core: %w", err)
+	uninstallCmd.Stdout = os.Stdout
+	uninstallCmd.Stderr = os.Stderr
+	if err := uninstallCmd.Run(); err != nil {
+		return fmt.Errorf("failed to uninstall Knative Serving: %w", err)
 	}
 
-	// Delete CRDs
-	crdCmd := exec.CommandContext(ctx, "kubectl", "delete",
-		"--kubeconfig", k.kubeconfig,
-		"-f", filepath.Join(manifestsPath, "serving-crds.yaml"),
-		"--ignore-not-found=true",
-	)
-	crdCmd.Stdout = os.Stdout
-	crdCmd.Stderr = os.Stderr
-	if err := crdCmd.Run(); err != nil {
-		return fmt.Errorf("failed to delete Knative CRDs: %w", err)
+	// Delete namespace
+	nsCmd := exec.CommandContext(ctx, "kubectl", "delete", "namespace", "knative-serving",
+		"--ignore-not-found=true")
+	if k.kubeconfig != "" {
+		nsCmd.Args = append(nsCmd.Args, "--kubeconfig", k.kubeconfig)
 	}
+	nsCmd.Stdout = os.Stdout
+	nsCmd.Stderr = os.Stderr
+	_ = nsCmd.Run() // Ignore errors
 
 	fmt.Println("✓ Knative Serving uninstalled successfully")
 	return nil
@@ -742,105 +741,84 @@ func NewExternalDNSComponent(kubeconfig, cloudflareToken string) *ExternalDNSCom
 	}
 }
 
-// Install installs ExternalDNS
+// Install installs ExternalDNS using Helm
 func (e *ExternalDNSComponent) Install() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	config, err := clientcmd.BuildConfigFromFlags("", e.kubeconfig)
-	if err != nil {
-		return fmt.Errorf("failed to build kubeconfig: %w", err)
+	// Add Bitnami Helm repository (hosts external-dns chart)
+	repoCmd := exec.CommandContext(ctx, "helm", "repo", "add", "bitnami",
+		"https://charts.bitnami.com/bitnami")
+	repoCmd.Stdout = os.Stdout
+	repoCmd.Stderr = os.Stderr
+	if err := repoCmd.Run(); err != nil {
+		return fmt.Errorf("failed to add Bitnami Helm repo: %w", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	// Update Helm repositories
+	updateCmd := exec.CommandContext(ctx, "helm", "repo", "update")
+	updateCmd.Stdout = os.Stdout
+	updateCmd.Stderr = os.Stderr
+	if err := updateCmd.Run(); err != nil {
+		return fmt.Errorf("failed to update Helm repos: %w", err)
 	}
 
-	// Create external-dns namespace
-	nsCmd := exec.CommandContext(ctx, "kubectl", "create", "namespace", "external-dns",
-		"--kubeconfig", e.kubeconfig,
-		"--dry-run=client", "-o", "yaml")
-	nsOutput, _ := nsCmd.Output()
+	// Install ExternalDNS with Helm
+	installCmd := exec.CommandContext(ctx, "helm", "install", "external-dns",
+		"bitnami/external-dns",
+		"--namespace", "external-dns",
+		"--create-namespace",
+		"--set", "provider=cloudflare",
+		"--set", "cloudflare.apiToken="+e.cloudflareToken,
+		"--set", "cloudflare.proxied=true",
+		"--set", "policy=upsert-only",
+		"--set", "txtOwnerId=clusterkit",
+		"--set", "sources[0]=service",
+		"--set", "sources[1]=ingress",
+		"--wait",
+		"--timeout", "5m")
 
-	applyNsCmd := exec.CommandContext(ctx, "kubectl", "apply",
-		"--kubeconfig", e.kubeconfig,
-		"-f", "-")
-	applyNsCmd.Stdin = strings.NewReader(string(nsOutput))
-	applyNsCmd.Stdout = os.Stdout
-	applyNsCmd.Stderr = os.Stderr
-	_ = applyNsCmd.Run() // Ignore error if namespace exists
-
-	// Create Cloudflare API token secret
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cloudflare-api-token",
-			Namespace: "external-dns",
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			"apiToken": e.cloudflareToken,
-		},
+	if e.kubeconfig != "" {
+		installCmd.Args = append(installCmd.Args, "--kubeconfig", e.kubeconfig)
 	}
 
-	_, err = clientset.CoreV1().Secrets("external-dns").Create(ctx, secret, metav1.CreateOptions{})
-	if err != nil {
-		// Try to update if already exists
-		_, err = clientset.CoreV1().Secrets("external-dns").Update(ctx, secret, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to create/update Cloudflare secret: %w", err)
-		}
-	}
-
-	// Apply ExternalDNS deployment
-	manifestsPath, err := filepath.Abs(e.manifestsDir)
-	if err != nil {
-		return fmt.Errorf("failed to resolve manifests directory: %w", err)
-	}
-
-	deployCmd := exec.CommandContext(ctx, "kubectl", "apply",
-		"--kubeconfig", e.kubeconfig,
-		"-f", filepath.Join(manifestsPath, "deployment.yaml"))
-	deployCmd.Stdout = os.Stdout
-	deployCmd.Stderr = os.Stderr
-	if err := deployCmd.Run(); err != nil {
-		return fmt.Errorf("failed to apply ExternalDNS deployment: %w", err)
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install ExternalDNS: %w", err)
 	}
 
 	fmt.Println("✓ ExternalDNS installed successfully")
 	return nil
 }
 
-// Uninstall removes ExternalDNS
+// Uninstall removes ExternalDNS using Helm
 func (e *ExternalDNSComponent) Uninstall() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Delete ExternalDNS deployment
-	manifestsPath, err := filepath.Abs(e.manifestsDir)
-	if err != nil {
-		return fmt.Errorf("failed to resolve manifests directory: %w", err)
+	uninstallCmd := exec.CommandContext(ctx, "helm", "uninstall", "external-dns",
+		"--namespace", "external-dns")
+
+	if e.kubeconfig != "" {
+		uninstallCmd.Args = append(uninstallCmd.Args, "--kubeconfig", e.kubeconfig)
 	}
 
-	deployCmd := exec.CommandContext(ctx, "kubectl", "delete",
-		"--kubeconfig", e.kubeconfig,
-		"-f", filepath.Join(manifestsPath, "deployment.yaml"),
-		"--ignore-not-found=true")
-	deployCmd.Stdout = os.Stdout
-	deployCmd.Stderr = os.Stderr
-	if err := deployCmd.Run(); err != nil {
-		return fmt.Errorf("failed to delete ExternalDNS deployment: %w", err)
+	uninstallCmd.Stdout = os.Stdout
+	uninstallCmd.Stderr = os.Stderr
+	if err := uninstallCmd.Run(); err != nil {
+		return fmt.Errorf("failed to uninstall ExternalDNS: %w", err)
 	}
 
-	// Delete namespace (which also deletes the secret)
+	// Delete namespace
 	nsCmd := exec.CommandContext(ctx, "kubectl", "delete", "namespace", "external-dns",
-		"--kubeconfig", e.kubeconfig,
 		"--ignore-not-found=true")
+	if e.kubeconfig != "" {
+		nsCmd.Args = append(nsCmd.Args, "--kubeconfig", e.kubeconfig)
+	}
 	nsCmd.Stdout = os.Stdout
 	nsCmd.Stderr = os.Stderr
-	if err := nsCmd.Run(); err != nil {
-		return fmt.Errorf("failed to delete external-dns namespace: %w", err)
-	}
+	_ = nsCmd.Run() // Ignore errors
 
 	fmt.Println("✓ ExternalDNS uninstalled successfully")
 	return nil
