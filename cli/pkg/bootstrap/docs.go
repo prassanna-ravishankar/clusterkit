@@ -1,0 +1,701 @@
+package bootstrap
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/clusterkit/clusterkit/pkg/log"
+)
+
+// DocumentationGenerator generates bootstrap documentation
+type DocumentationGenerator struct {
+	config *Config
+	result *BootstrapResult
+	logger *log.Logger
+}
+
+// NewDocumentationGenerator creates a new documentation generator
+func NewDocumentationGenerator(config *Config, result *BootstrapResult) *DocumentationGenerator {
+	return &DocumentationGenerator{
+		config: config,
+		result: result,
+		logger: log.GetLogger(),
+	}
+}
+
+// Generate generates comprehensive documentation for the bootstrap
+func (d *DocumentationGenerator) Generate(outputDir string) error {
+	d.logger.Infof("Generating documentation in: %s", outputDir)
+
+	// Create output directory
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Generate main setup documentation
+	if err := d.generateSetupDoc(filepath.Join(outputDir, "SETUP.md")); err != nil {
+		return fmt.Errorf("failed to generate setup doc: %w", err)
+	}
+
+	// Generate configuration reference
+	if err := d.generateConfigDoc(filepath.Join(outputDir, "CONFIGURATION.md")); err != nil {
+		return fmt.Errorf("failed to generate config doc: %w", err)
+	}
+
+	// Generate operations guide
+	if err := d.generateOperationsDoc(filepath.Join(outputDir, "OPERATIONS.md")); err != nil {
+		return fmt.Errorf("failed to generate operations doc: %w", err)
+	}
+
+	// Generate troubleshooting guide
+	if err := d.generateTroubleshootingDoc(filepath.Join(outputDir, "TROUBLESHOOTING.md")); err != nil {
+		return fmt.Errorf("failed to generate troubleshooting doc: %w", err)
+	}
+
+	d.logger.Info("Documentation generated successfully")
+	return nil
+}
+
+// generateSetupDoc generates the main setup documentation
+func (d *DocumentationGenerator) generateSetupDoc(path string) error {
+	content := fmt.Sprintf(`# ClusterKit Setup Summary
+
+**Generated:** %s
+**Duration:** %s
+
+## Cluster Information
+
+- **Project ID:** %s
+- **Region:** %s
+- **Cluster Name:** %s
+- **Domain:** %s
+
+## Bootstrap Steps
+
+`, time.Now().Format(time.RFC3339), d.result.Duration, d.config.ProjectID, d.config.Region, d.config.ClusterName, d.config.Domain)
+
+	// Add step details
+	for i, step := range d.result.Steps {
+		status := "✓"
+		if step.Status != StepStatusSuccess {
+			status = "✗"
+		}
+		content += fmt.Sprintf("%d. %s %s (%s)\n", i+1, status, step.Name, step.Duration)
+		if step.Message != "" {
+			content += fmt.Sprintf("   - %s\n", step.Message)
+		}
+		if step.Error != nil {
+			content += fmt.Sprintf("   - Error: %v\n", step.Error)
+		}
+	}
+
+	content += fmt.Sprintf(`
+
+## Installed Components
+
+### Knative Serving
+- **Version:** Latest
+- **Namespace:** knative-serving
+- **Purpose:** Scale-to-zero serverless applications
+
+### NGINX Ingress Controller
+- **Namespace:** ingress-nginx
+- **Purpose:** HTTP/HTTPS routing and load balancing
+
+### cert-manager
+- **Version:** v1.14.4
+- **Namespace:** cert-manager
+- **Purpose:** Automatic TLS certificate management via Let's Encrypt
+
+### ExternalDNS
+- **Version:** v0.14.0
+- **Namespace:** external-dns
+- **Purpose:** Automatic DNS record management via Cloudflare
+
+## Access Information
+
+### Cluster Access
+
+Connect to your cluster:
+
+` + "```bash\n")
+
+	content += fmt.Sprintf("gcloud container clusters get-credentials %s --region=%s --project=%s\n", d.config.ClusterName, d.config.Region, d.config.ProjectID)
+	content += "```\n\n"
+
+	content += `### Kubernetes Dashboard
+
+Access the Kubernetes dashboard (if enabled):
+
+` + "```bash\n" + `kubectl proxy
+# Then navigate to: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
+` + "```\n\n"
+
+	content += fmt.Sprintf(`## Domain Configuration
+
+Your applications will be accessible at: **%s**
+
+ExternalDNS is configured to automatically create DNS records in Cloudflare for any Knative services or Ingress resources with the appropriate annotations.
+
+## Next Steps
+
+1. **Deploy your first application:**
+   ` + "```bash\n" + `   clusterkit create myapp --image=gcr.io/my-project/myapp:latest
+   ` + "```\n\n" + `
+
+2. **Check application status:**
+   ` + "```bash\n" + `   clusterkit status myapp
+   ` + "```\n\n" + `
+
+3. **View application logs:**
+   ` + "```bash\n" + `   clusterkit logs myapp
+   ` + "```\n\n" + `
+
+4. **Create a database:**
+   ` + "```bash\n" + `   clusterkit db create mydb --database=postgres --size=small
+   ` + "```\n\n" + `
+
+## Important Files
+
+- **Terraform State:** Check terraform/ directory for infrastructure state
+- **Kubeconfig:** ~/.kube/config (or custom path if specified)
+- **Logs:** Use kubectl logs or clusterkit logs commands
+
+## Support
+
+For issues or questions:
+- Check TROUBLESHOOTING.md
+- Review Kubernetes logs: kubectl logs -n <namespace> <pod>
+- Check component status: kubectl get pods --all-namespaces
+
+---
+Generated by ClusterKit Bootstrap v%s
+`, d.config.Domain, Version)
+
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// generateConfigDoc generates configuration reference documentation
+func (d *DocumentationGenerator) generateConfigDoc(path string) error {
+	content := fmt.Sprintf(`# ClusterKit Configuration Reference
+
+**Generated:** %s
+
+## Current Configuration
+
+### GCP Settings
+- **Project ID:** %s
+- **Region:** %s
+- **Cluster Name:** %s
+
+### Domain Settings
+- **Primary Domain:** %s
+- **DNS Provider:** Cloudflare
+
+### Component Configuration
+
+`, time.Now().Format(time.RFC3339), d.config.ProjectID, d.config.Region, d.config.ClusterName, d.config.Domain)
+
+	// List installed components
+	components := []struct {
+		name      string
+		installed bool
+	}{
+		{"Terraform (GKE Infrastructure)", !d.config.SkipTerraform},
+		{"Knative Serving", !d.config.SkipKnative},
+		{"NGINX Ingress Controller", !d.config.SkipIngress},
+		{"cert-manager", !d.config.SkipCertManager},
+		{"ExternalDNS", !d.config.SkipExternalDNS},
+	}
+
+	for _, comp := range components {
+		status := "✓ Installed"
+		if !comp.installed {
+			status = "○ Skipped"
+		}
+		content += fmt.Sprintf("- **%s:** %s\n", comp.name, status)
+	}
+
+	content += `
+
+## Configuration Files
+
+### Terraform Variables
+
+Location: ` + "`terraform/terraform.tfvars`\n\n```hcl\n"
+
+	content += fmt.Sprintf(`project_id   = "%s"
+region       = "%s"
+cluster_name = "%s"
+domain       = "%s"
+`, d.config.ProjectID, d.config.Region, d.config.ClusterName, d.config.Domain)
+
+	content += "```\n\n"
+
+	content += `### ClusterKit CLI Configuration
+
+Location: ` + "`~/.clusterkit/config.yaml`\n\n```yaml\n"
+
+	content += fmt.Sprintf(`project_id: %s
+region: %s
+cluster_name: %s
+domain: %s
+
+defaults:
+  min_scale: 0
+  max_scale: 10
+  concurrency: 10
+  memory: 256Mi
+  cpu: 1000m
+
+log_level: info
+log_format: text
+`, d.config.ProjectID, d.config.Region, d.config.ClusterName, d.config.Domain)
+
+	content += "```\n\n"
+
+	content += `### Knative Domain Configuration
+
+The following domain is configured for Knative services:
+
+` + "```bash\n" + fmt.Sprintf(`kubectl get configmap config-domain -n knative-serving -o yaml
+# Should show: %s: ""
+`, d.config.Domain) + "```\n\n"
+
+	content += `## Modifying Configuration
+
+### Changing Domain
+
+To change the primary domain:
+
+1. Update Cloudflare DNS provider configuration
+2. Update Knative domain configuration:
+   ` + "```bash\n" + `   kubectl patch configmap config-domain -n knative-serving --type merge -p '{"data":{"new-domain.com":""}}'
+   ` + "```\n\n" + `
+
+### Scaling Configuration
+
+Modify default scaling limits in ` + "`~/.clusterkit/config.yaml`" + ` or use flags:
+
+` + "```bash\n" + `clusterkit create myapp --image=myimage --min-scale=2 --max-scale=20
+` + "```\n\n" + `
+
+### TLS Certificate Configuration
+
+cert-manager is configured with Let's Encrypt production issuer. To view:
+
+` + "```bash\n" + `kubectl get clusterissuer letsencrypt-prod -o yaml
+` + "```\n\n" + `
+
+---
+Generated by ClusterKit Bootstrap
+`
+
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// generateOperationsDoc generates operations guide
+func (d *DocumentationGenerator) generateOperationsDoc(path string) error {
+	content := fmt.Sprintf(`# ClusterKit Operations Guide
+
+**Generated:** %s
+
+## Daily Operations
+
+### Deploying Applications
+
+#### Create a New Service
+
+` + "```bash\n" + `clusterkit create myapp \
+  --image=gcr.io/%s/myapp:latest \
+  --min-scale=0 \
+  --max-scale=10
+` + "```\n\n" + `
+
+#### Update an Existing Service
+
+` + "```bash\n" + `clusterkit create myapp \
+  --image=gcr.io/%s/myapp:v2 \
+  --env=KEY=value
+` + "```\n\n" + `
+
+#### Delete a Service
+
+` + "```bash\n" + `clusterkit delete myapp
+` + "```\n\n" + `
+
+### Monitoring
+
+#### Check Service Status
+
+` + "```bash\n" + `clusterkit status myapp
+` + "```\n\n" + `
+
+#### View Logs
+
+` + "```bash\n" + `# Real-time logs
+clusterkit logs myapp --follow
+
+# Last 100 lines
+clusterkit logs myapp --tail=100
+` + "```\n\n" + `
+
+#### Check All Services
+
+` + "```bash\n" + `kubectl get ksvc --all-namespaces
+` + "```\n\n" + `
+
+### Database Management
+
+#### Create a Database
+
+` + "```bash\n" + `clusterkit db create mydb \
+  --database=postgres \
+  --size=small
+` + "```\n\n" + `
+
+#### Get Database Connection Info
+
+` + "```bash\n" + `clusterkit db info mydb
+` + "```\n\n" + `
+
+#### Delete a Database
+
+` + "```bash\n" + `clusterkit db delete mydb
+` + "```\n\n" + `
+
+### Domain Management
+
+#### Add a Custom Domain
+
+` + "```bash\n" + `clusterkit domain add myapp.%s
+` + "```\n\n" + `
+
+#### List Domains
+
+` + "```bash\n" + `clusterkit domain list
+` + "```\n\n" + `
+
+#### Remove a Domain
+
+` + "```bash\n" + `clusterkit domain remove myapp.%s
+` + "```\n\n" + `
+
+## Maintenance Tasks
+
+### Update Components
+
+#### Update Knative
+
+` + "```bash\n" + `kubectl apply -f https://github.com/knative/serving/releases/latest/download/serving-crds.yaml
+kubectl apply -f https://github.com/knative/serving/releases/latest/download/serving-core.yaml
+` + "```\n\n" + `
+
+#### Update cert-manager
+
+` + "```bash\n" + `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+` + "```\n\n" + `
+
+### Backup and Restore
+
+#### Backup Cluster Configuration
+
+` + "```bash\n" + `# Backup all Knative services
+kubectl get ksvc --all-namespaces -o yaml > knative-services-backup.yaml
+
+# Backup all ingresses
+kubectl get ingress --all-namespaces -o yaml > ingress-backup.yaml
+
+# Backup cert-manager certificates
+kubectl get certificates --all-namespaces -o yaml > certificates-backup.yaml
+` + "```\n\n" + `
+
+#### Restore from Backup
+
+` + "```bash\n" + `kubectl apply -f knative-services-backup.yaml
+kubectl apply -f ingress-backup.yaml
+` + "```\n\n" + `
+
+### Scaling Operations
+
+#### Scale a Service
+
+` + "```bash\n" + `# Scale manually
+kubectl scale ksvc myapp --replicas=5 -n default
+
+# Or update via clusterkit
+clusterkit create myapp --min-scale=2 --max-scale=20
+` + "```\n\n" + `
+
+#### Check Resource Usage
+
+` + "```bash\n" + `# Node resource usage
+kubectl top nodes
+
+# Pod resource usage
+kubectl top pods --all-namespaces
+` + "```\n\n" + `
+
+## Security Operations
+
+### Update Secrets
+
+#### Update Cloudflare Token
+
+` + "```bash\n" + `kubectl create secret generic cloudflare-api-token \
+  --from-literal=api-token=NEW_TOKEN \
+  --dry-run=client -o yaml | kubectl apply -f -
+` + "```\n\n" + `
+
+#### Rotate TLS Certificates
+
+Certificates are automatically renewed by cert-manager. To force renewal:
+
+` + "```bash\n" + `kubectl delete certificate myapp-tls -n default
+# cert-manager will automatically recreate it
+` + "```\n\n" + `
+
+### Access Control
+
+#### Grant User Access to Cluster
+
+` + "```bash\n" + `gcloud projects add-iam-policy-binding %s \
+  --member=user:user@example.com \
+  --role=roles/container.developer
+` + "```\n\n" + `
+
+## Cost Optimization
+
+### Identify Idle Resources
+
+` + "```bash\n" + `# Find services with min-scale > 0
+kubectl get ksvc --all-namespaces -o json | \
+  jq '.items[] | select(.spec.template.metadata.annotations."autoscaling.knative.dev/minScale" != "0")'
+` + "```\n\n" + `
+
+### Review GCP Costs
+
+` + "```bash\n" + `gcloud billing accounts list
+gcloud billing projects describe %s
+` + "```\n\n" + `
+
+---
+Generated by ClusterKit Bootstrap
+`, time.Now().Format(time.RFC3339), d.config.ProjectID, d.config.ProjectID, d.config.Domain, d.config.Domain, d.config.ProjectID, d.config.ProjectID)
+
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// generateTroubleshootingDoc generates troubleshooting guide
+func (d *DocumentationGenerator) generateTroubleshootingDoc(path string) error {
+	content := `# ClusterKit Troubleshooting Guide
+
+## Common Issues
+
+### Services Not Accessible
+
+**Symptom:** Cannot access service via domain
+
+**Checks:**
+
+1. Verify service is running:
+   ` + "```bash\n" + `   kubectl get ksvc -n default
+   ` + "```\n\n" + `
+
+2. Check ingress status:
+   ` + "```bash\n" + `   kubectl get ingress --all-namespaces
+   ` + "```\n\n" + `
+
+3. Verify DNS records in Cloudflare dashboard
+
+4. Check ExternalDNS logs:
+   ` + "```bash\n" + `   kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
+   ` + "```\n\n" + `
+
+### TLS Certificate Issues
+
+**Symptom:** Certificate errors when accessing services
+
+**Checks:**
+
+1. Check certificate status:
+   ` + "```bash\n" + `   kubectl get certificates --all-namespaces
+   ` + "```\n\n" + `
+
+2. View cert-manager logs:
+   ` + "```bash\n" + `   kubectl logs -n cert-manager -l app=cert-manager
+   ` + "```\n\n" + `
+
+3. Check ClusterIssuer:
+   ` + "```bash\n" + `   kubectl get clusterissuer letsencrypt-prod -o yaml
+   ` + "```\n\n" + `
+
+4. Verify domain ownership and DNS propagation
+
+### Service Scaling Issues
+
+**Symptom:** Service not scaling as expected
+
+**Checks:**
+
+1. Check Knative autoscaler:
+   ` + "```bash\n" + `   kubectl logs -n knative-serving -l app=autoscaler
+   ` + "```\n\n" + `
+
+2. Verify service configuration:
+   ` + "```bash\n" + `   kubectl get ksvc myapp -o yaml
+   ` + "```\n\n" + `
+
+3. Check metrics:
+   ` + "```bash\n" + `   kubectl top pods -n default
+   ` + "```\n\n" + `
+
+### DNS Not Updating
+
+**Symptom:** DNS records not created or updated
+
+**Checks:**
+
+1. Verify ExternalDNS is running:
+   ` + "```bash\n" + `   kubectl get pods -n external-dns
+   ` + "```\n\n" + `
+
+2. Check ExternalDNS logs for errors:
+   ` + "```bash\n" + `   kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns --tail=100
+   ` + "```\n\n" + `
+
+3. Verify Cloudflare API token permissions
+
+4. Check ingress/service annotations:
+   ` + "```bash\n" + `   kubectl get ingress myapp -o yaml | grep external-dns
+   ` + "```\n\n" + `
+
+## Component Health Checks
+
+### Knative Serving
+
+` + "```bash\n" + `# Check all Knative pods
+kubectl get pods -n knative-serving
+
+# Check Knative controller logs
+kubectl logs -n knative-serving -l app=controller
+
+# Verify webhook is working
+kubectl get validatingwebhookconfigurations | grep knative
+` + "```\n\n" + `
+
+### NGINX Ingress
+
+` + "```bash\n" + `# Check ingress controller pods
+kubectl get pods -n ingress-nginx
+
+# View controller logs
+kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller
+
+# Check LoadBalancer status
+kubectl get svc -n ingress-nginx ingress-nginx-controller
+` + "```\n\n" + `
+
+### cert-manager
+
+` + "```bash\n" + `# Check cert-manager pods
+kubectl get pods -n cert-manager
+
+# View cert-manager logs
+kubectl logs -n cert-manager -l app=cert-manager
+
+# Check webhook
+kubectl get validatingwebhookconfigurations | grep cert-manager
+` + "```\n\n" + `
+
+### ExternalDNS
+
+` + "```bash\n" + `# Check ExternalDNS pods
+kubectl get pods -n external-dns
+
+# View logs
+kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
+
+# Check DNS records being managed
+kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns | grep "CREATE\|UPDATE\|DELETE"
+` + "```\n\n" + `
+
+## Debugging Commands
+
+### Get All Resources
+
+` + "```bash\n" + `kubectl get all --all-namespaces
+` + "```\n\n" + `
+
+### Describe Resource
+
+` + "```bash\n" + `kubectl describe ksvc myapp -n default
+kubectl describe pod pod-name -n namespace
+` + "```\n\n" + `
+
+### View Events
+
+` + "```bash\n" + `kubectl get events --all-namespaces --sort-by='.lastTimestamp'
+` + "```\n\n" + `
+
+### Check Resource Usage
+
+` + "```bash\n" + `kubectl top nodes
+kubectl top pods --all-namespaces
+` + "```\n\n" + `
+
+## Recovery Procedures
+
+### Restart a Component
+
+` + "```bash\n" + `# Restart Knative controller
+kubectl rollout restart deployment controller -n knative-serving
+
+# Restart Ingress controller
+kubectl rollout restart deployment ingress-nginx-controller -n ingress-nginx
+
+# Restart cert-manager
+kubectl rollout restart deployment cert-manager -n cert-manager
+` + "```\n\n" + `
+
+### Force Certificate Renewal
+
+` + "```bash\n" + `kubectl delete certificate myapp-tls -n default
+# Wait for cert-manager to recreate it
+kubectl get certificate -n default -w
+` + "```\n\n" + `
+
+### Recreate Failed Service
+
+` + "```bash\n" + `# Export current configuration
+kubectl get ksvc myapp -o yaml > myapp-backup.yaml
+
+# Delete service
+kubectl delete ksvc myapp
+
+# Recreate from backup
+kubectl apply -f myapp-backup.yaml
+` + "```\n\n" + `
+
+## Getting Help
+
+If you continue to experience issues:
+
+1. **Check GCP Status:** https://status.cloud.google.com/
+2. **Check Cloudflare Status:** https://www.cloudflarestatus.com/
+3. **Review Kubernetes Events:** Look for error messages in kubectl events
+4. **Collect Logs:** Gather logs from all relevant components
+5. **Contact Support:** Provide detailed logs and error messages
+
+---
+Generated by ClusterKit Bootstrap
+`
+
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// Version is set at build time
+var Version = "dev"
