@@ -1084,11 +1084,73 @@
             "testStrategy": "Deploy all example manifests to test cluster, execute every documented command and verify expected outcomes, test examples on clean environment following documentation"
           }
         ]
+      },
+      {
+        "id": 16,
+        "title": "Complete Bootstrap Component Installation Implementation",
+        "description": "Implement all 17 TODO stub methods in the bootstrap components to enable actual component installation, uninstallation, and health checking functionality.",
+        "details": "The bootstrap orchestrator is well-designed but calls empty stub functions in cli/pkg/bootstrap/components/components.go, preventing any actual installation. This task involves implementing core functionality:\n\n**1. Terraform Component (lines 34-43):**\n- Implement Apply() method using os/exec to run `terraform apply` in terraform/ directory with proper variable passing (project_id, region, cluster_name)\n- Implement Destroy() method using `terraform destroy` with confirmation prompts\n- Add proper error handling, timeout management (10min), and output parsing\n\n**2. Cluster Health Checker (lines 62-66):**\n- Implement Check() method using k8s.io/client-go to verify cluster connectivity\n- Check node readiness, control plane health, and essential system pods\n- Validate cluster version and Autopilot configuration\n\n**3. Knative Component (lines 82-101):**\n- Implement Install() using kubectl apply with manifests from k8s/knative/ directory\n- Implement Uninstall() with proper cleanup of CRDs and resources\n- Implement HealthCheck() to verify knative-serving namespace pods are ready\n- Implement ConfigureDomain() to update config-domain ConfigMap\n\n**4. Ingress Component (lines 118-131):**\n- Implement Install() using helm install nginx-ingress with values from k8s/nginx-ingress/values.yaml\n- Implement Uninstall() using helm uninstall with proper cleanup\n- Implement HealthCheck() to verify nginx-ingress pods ready and LoadBalancer IP assigned\n\n**5. CertManager Component (lines 148-162):**\n- Implement Install() using helm install cert-manager and apply ClusterIssuer manifests from k8s/cert-manager/\n- Implement Uninstall() with proper CRD cleanup sequence\n- Implement HealthCheck() to verify cert-manager pods ready and webhook functional\n\n**6. ExternalDNS Component (lines 180-194):**\n- Implement Install() using kubectl apply with ExternalDNS deployment and Cloudflare secret from k8s/external-dns/\n- Implement Uninstall() with proper secret cleanup\n- Implement HealthCheck() to verify ExternalDNS pod ready and Cloudflare API connectivity\n\n**Technical Requirements:**\n- Use existing k8s.io/client-go v0.28.4 for Kubernetes operations\n- Use os/exec for terraform and helm command execution\n- Add context.WithTimeout for all operations (5min per component)\n- Implement proper error wrapping with component context\n- Ensure idempotency - operations can be run multiple times safely\n- Add structured logging using existing logger\n- Support dry-run mode detection from orchestrator\n- Use existing kubeconfig and context configuration\n\n**Integration Points:**\n- Must work seamlessly with existing orchestrator.go retry and progress logic\n- Health checks called after successful installation for validation\n- Uninstall methods used in rollback scenarios\n- Component constructors already defined and used by orchestrator",
+        "testStrategy": "Create comprehensive test suite covering: 1) Unit tests for each component method with mocked kubectl/helm/terraform commands, 2) Integration tests running bootstrap in test GKE cluster verifying all components install successfully, 3) Health check validation tests ensuring accurate status reporting, 4) Rollback tests verifying proper cleanup in failure scenarios, 5) Dry-run mode tests ensuring no actual changes occur, 6) End-to-end bootstrap test validating complete workflow from Terraform to validation, 7) Test component idempotency by running installation multiple times, 8) Verify all 17 TODO comments are resolved and replaced with working implementations",
+        "status": "done",
+        "dependencies": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Terraform Component Apply and Destroy Methods",
+            "description": "Implement the Apply() and Destroy() methods for TerraformComponent using os/exec to execute terraform commands in the terraform/ directory",
+            "dependencies": [],
+            "details": "Implement Apply() method to run 'terraform apply' with auto-approve flag, passing project_id, region, and cluster_name variables via -var flags. Add timeout context (10 minutes), proper error handling, and output parsing. Implement Destroy() method to run 'terraform destroy' with auto-approve flag and same variable passing. Both methods should change directory to terraform/ before execution and use structured logging for output.",
+            "status": "done",
+            "testStrategy": "Unit tests with mocked os/exec commands to verify correct terraform command construction and variable passing. Integration tests running actual terraform commands in isolated test environment."
+          },
+          {
+            "id": 2,
+            "title": "Implement Cluster Health Checker with Kubernetes Client",
+            "description": "Implement the Check() method for ClusterHealthChecker using k8s.io/client-go to verify GKE cluster health and readiness",
+            "dependencies": [],
+            "details": "Use k8s.io/client-go v0.28.4 to connect to the cluster and verify: node readiness status, control plane health via API server connectivity, essential system pods in kube-system namespace (kube-dns, metrics-server), cluster version validation, and Autopilot node pool configuration. Include timeout context (5 minutes) and proper error wrapping with cluster context information.",
+            "status": "done",
+            "testStrategy": "Unit tests with fake Kubernetes clientset to simulate various cluster health scenarios. Integration tests against real GKE cluster to verify accurate health reporting."
+          },
+          {
+            "id": 3,
+            "title": "Implement Knative Component Installation and Management",
+            "description": "Implement Install(), Uninstall(), HealthCheck(), and ConfigureDomain() methods for KnativeComponent using kubectl commands and Kubernetes client",
+            "dependencies": [],
+            "details": "Install() should apply manifests from k8s/knative/ directory using kubectl apply with proper namespace creation. Uninstall() should remove all Knative resources including CRDs with proper cleanup sequence. HealthCheck() should verify knative-serving namespace pods are ready and serving controller is functional. ConfigureDomain() should update config-domain ConfigMap in knative-serving namespace. Use 5-minute timeout contexts and structured logging.",
+            "status": "done",
+            "testStrategy": "Unit tests with mocked kubectl commands and Kubernetes client operations. Integration tests installing Knative in test cluster and verifying all components are functional."
+          },
+          {
+            "id": 4,
+            "title": "Implement Ingress Component with Helm Operations",
+            "description": "Implement Install(), Uninstall(), and HealthCheck() methods for IngressComponent using helm commands to manage nginx-ingress controller",
+            "dependencies": [],
+            "details": "Install() should use 'helm install nginx-ingress' with values from k8s/nginx-ingress/values.yaml, creating ingress-nginx namespace if needed. Uninstall() should use 'helm uninstall nginx-ingress' with proper cleanup of LoadBalancer services. HealthCheck() should verify nginx-ingress pods are ready in ingress-nginx namespace and LoadBalancer service has external IP assigned. Include 5-minute timeout contexts and idempotency checks.",
+            "status": "done",
+            "testStrategy": "Unit tests with mocked helm commands to verify correct installation parameters. Integration tests deploying nginx-ingress in test cluster and validating LoadBalancer functionality."
+          },
+          {
+            "id": 5,
+            "title": "Implement CertManager and ExternalDNS Components with Complete Lifecycle Management",
+            "description": "Implement all methods for CertManagerComponent and ExternalDNSComponent including installation, uninstallation, and health checking",
+            "dependencies": [],
+            "details": "CertManager: Install() using 'helm install cert-manager' and apply ClusterIssuer manifests from k8s/cert-manager/. Uninstall() with proper CRD cleanup sequence. HealthCheck() verifying cert-manager pods ready and webhook functional. ExternalDNS: Install() applying deployment.yaml and creating Cloudflare secret from k8s/external-dns/. Uninstall() with secret cleanup. HealthCheck() verifying ExternalDNS pod ready and Cloudflare API connectivity. Use 5-minute timeouts and proper error context wrapping.",
+            "status": "done",
+            "testStrategy": "Unit tests with mocked helm and kubectl commands for both components. Integration tests installing cert-manager and ExternalDNS in test cluster, verifying certificate issuance and DNS record management."
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-10-27T08:24:54.008Z",
-      "updated": "2025-11-03T09:08:14.827Z",
+      "updated": "2025-11-03T10:02:22.905Z",
       "description": "Tasks for master context"
     }
   }

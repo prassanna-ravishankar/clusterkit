@@ -280,7 +280,7 @@ func (o *Orchestrator) deployTerraform() error {
 func (o *Orchestrator) checkClusterHealth() error {
 	o.logger.Debug("Checking GKE cluster health")
 
-	checker := components.NewClusterHealthChecker(o.config.ProjectID, o.config.Region, o.config.ClusterName)
+	checker := components.NewClusterHealthChecker(o.config.ProjectID, o.config.Region, o.config.ClusterName, o.config.Kubeconfig)
 	return checker.Check()
 }
 
