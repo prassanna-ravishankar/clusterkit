@@ -2,44 +2,22 @@ resource "google_container_cluster" "primary" {
   name     = var.cluster_name
   location = var.region
 
-  # Enable Autopilot mode
+  # Enable Autopilot mode - Google manages all infrastructure automatically
   enable_autopilot = true
 
-  # Autopilot clusters are configured automatically, but we can set some preferences
+  # Release channel for automatic updates
   release_channel {
     channel = "REGULAR"
   }
 
-  # Minimum version constraint
-  min_master_version = var.kubernetes_version
-
-  # Network configuration
+  # Network configuration (use default VPC for simplicity)
   network    = "default"
   subnetwork = "default"
 
-  # IP allocation for pods and services
+  # IP allocation for pods and services (empty = auto-assign)
   ip_allocation_policy {
     cluster_ipv4_cidr_block  = ""
     services_ipv4_cidr_block = ""
-  }
-
-  # Workload Identity for secure pod-to-GCP service authentication
-  workload_identity_config {
-    workload_pool = "${var.project_id}.svc.id.goog"
-  }
-
-  # Enable Binary Authorization for enhanced security
-  binary_authorization {
-    evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"
-  }
-
-  # Note: Shielded Nodes are automatically enabled in Autopilot mode
-
-  # Maintenance window
-  maintenance_policy {
-    daily_maintenance_window {
-      start_time = "03:00" # 3 AM UTC
-    }
   }
 
   # Deletion protection
@@ -52,15 +30,11 @@ resource "google_container_cluster" "primary" {
     project     = "clusterkit"
   }
 
-  # Logging and monitoring configuration
-  logging_config {
-    enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
-  }
-
-  monitoring_config {
-    enable_components = ["SYSTEM_COMPONENTS"]
-    managed_prometheus {
-      enabled = true
-    }
-  }
+  # Note: The following are automatically configured in Autopilot mode:
+  # - Shielded Nodes (enabled by default)
+  # - Workload Identity (auto-configured)
+  # - Logging and Monitoring (SYSTEM_COMPONENTS enabled)
+  # - Binary Authorization (configurable via GCP console if needed)
+  # - Node auto-provisioning, scaling, and repair
+  # - Security patches and upgrades
 }
