@@ -1,0 +1,32 @@
+# Ingress with Automatic DNS via ExternalDNS
+# Creates DNS record + TLS certificate automatically
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-with-auto-dns
+  namespace: default
+  annotations:
+    # cert-manager creates TLS certificate
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+
+    # ExternalDNS creates DNS record (automatically from host)
+    # No explicit hostname annotation needed - uses spec.rules[].host
+    external-dns.alpha.kubernetes.io/ttl: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - app.example.com  # TODO: Replace with your domain
+    secretName: app-example-tls-auto
+  rules:
+  - host: app.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app-service
+            port:
+              number: 80

@@ -1,0 +1,50 @@
+# Test Service with ExternalDNS Annotation
+# Automatically creates DNS record in Cloudflare
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-external-dns
+  namespace: default
+  annotations:
+    # ExternalDNS will create A record for this hostname
+    external-dns.alpha.kubernetes.io/hostname: test.example.com  # TODO: Replace with your domain
+    # Optional: Set TTL for DNS record
+    external-dns.alpha.kubernetes.io/ttl: "300"  # 5 minutes
+spec:
+  type: LoadBalancer
+  selector:
+    app: test-dns
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-dns-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-dns
+  template:
+    metadata:
+      labels:
+        app: test-dns
+    spec:
+      containers:
+      - name: echo
+        image: hashicorp/http-echo:latest
+        args:
+        - "-text=Hello from ExternalDNS + Cloudflare!"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi

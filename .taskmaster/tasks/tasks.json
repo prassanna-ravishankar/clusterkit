@@ -283,7 +283,7 @@
         "dependencies": [
           3
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -291,7 +291,7 @@
             "description": "Generate a Cloudflare API token with zone:read and dns:edit permissions for ExternalDNS integration",
             "dependencies": [],
             "details": "Log into Cloudflare dashboard, navigate to My Profile > API Tokens, create custom token with Zone:Zone:Read and Zone:DNS:Edit permissions. Scope to specific zones if needed. Document token creation process and store securely for Kubernetes Secret creation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify token permissions by testing API calls to list zones and create test DNS record"
           },
           {
@@ -302,7 +302,7 @@
               1
             ],
             "details": "Create Kubernetes Secret with Cloudflare API token. Deploy ExternalDNS using Helm chart or YAML manifests with cloudflare provider configuration. Set sources to service, ingress, knative. Configure txt-owner-id for record ownership and policy=upsert-only for safety. Place manifests in k8s/external-dns/ directory.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify ExternalDNS pod starts successfully and logs show successful Cloudflare API connection"
           },
           {
@@ -311,7 +311,7 @@
             "description": "Set up proper Role-Based Access Control for ExternalDNS to read services and ingresses",
             "dependencies": [],
             "details": "Create ServiceAccount, ClusterRole, and ClusterRoleBinding for ExternalDNS. Grant permissions to read services, ingresses, nodes, and endpoints. Include permissions for creating and managing DNS-related ConfigMaps and Events. Follow principle of least privilege.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify RBAC permissions by checking ExternalDNS can list services and ingresses without errors"
           },
           {
@@ -322,7 +322,7 @@
               2
             ],
             "details": "Configure domain-filter to restrict ExternalDNS to specific domains. Set txt-owner-id for record ownership tracking. Configure policy=upsert-only to prevent accidental record deletion. Add txt-prefix for TXT record identification. Include annotation-filter if needed for selective service processing.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Deploy service outside domain-filter and verify no DNS records are created, then test with valid domain"
           },
           {
@@ -335,7 +335,7 @@
               4
             ],
             "details": "Create test Kubernetes service with external-dns.alpha.kubernetes.io/hostname annotation. Deploy sample application and verify DNS record creation in Cloudflare dashboard. Test record updates when service changes. Test cleanup by deleting service and confirming DNS record removal.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Deploy test service with DNS annotation, verify record creation in Cloudflare, test record cleanup on service deletion"
           }
         ]
@@ -1088,7 +1088,7 @@
     ],
     "metadata": {
       "created": "2025-10-27T08:24:54.008Z",
-      "updated": "2025-11-02T02:09:14.325Z",
+      "updated": "2025-11-03T00:29:58.401Z",
       "description": "Tasks for master context"
     }
   }
