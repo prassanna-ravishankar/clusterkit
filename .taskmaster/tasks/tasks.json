@@ -1166,7 +1166,7 @@
             "description": "Implement a new apply package (cli/pkg/apply/) with dynamic.NewForConfig() client for applying arbitrary YAML manifests to Kubernetes clusters",
             "dependencies": [],
             "details": "Create cli/pkg/apply/client.go with ApplyClient struct using k8s.io/client-go/dynamic. Implement ApplyManifest() function for server-side apply, WaitForDeployment() for status polling with configurable timeout, and RollbackOnFailure() for cleanup. Support --kubeconfig and --context flags through existing k8s client configuration. Use context cancellation for timeout handling and structured error messages for common failures like network issues or expired tokens.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for apply client creation, mock dynamic client for testing ApplyManifest functionality, integration tests with actual cluster for full workflow validation"
           },
           {
@@ -1252,7 +1252,7 @@
     ],
     "metadata": {
       "created": "2025-10-27T08:24:54.008Z",
-      "updated": "2025-11-03T21:12:55.859Z",
+      "updated": "2025-11-03T21:15:55.418Z",
       "description": "Tasks for master context"
     }
   }
