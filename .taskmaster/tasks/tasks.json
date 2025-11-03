@@ -443,7 +443,7 @@
           5,
           6
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -451,7 +451,7 @@
             "description": "Create the core functionality to generate Knative Service YAML manifests with standardized resource requests and limits",
             "dependencies": [],
             "details": "Implement manifest generation logic that creates Knative Service specs with 100m CPU and 128Mi memory resource requests. Include proper container configuration, service metadata, and revision template structure. Ensure generated manifests are valid Knative resources that can be applied to cluster.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for manifest generation, validation of generated YAML structure, integration tests applying manifests to test cluster"
           },
           {
@@ -462,7 +462,7 @@
               1
             ],
             "details": "Create domain validation functions to check format and availability. Implement logic to configure custom domains in Knative Service specs. Add support for both apex domains and subdomains. Include DNS record validation and conflict detection to prevent domain collisions.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test domain format validation, verify DNS configuration in manifests, test domain conflict detection with existing services"
           },
           {
@@ -473,7 +473,7 @@
               2
             ],
             "details": "Create Certificate resource generation logic that works with cert-manager. Implement automatic certificate provisioning for configured domains. Add support for Let's Encrypt ACME challenges. Include certificate renewal monitoring and error handling for failed certificate issuance.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test certificate creation for various domains, verify ACME challenge completion, validate certificate renewal process"
           },
           {
@@ -484,7 +484,7 @@
               1
             ],
             "details": "Implement autoscaling annotation logic with min-scale=0, max-scale=5, and target=10 as defaults. Add support for custom scaling parameters and concurrency targets. Include scale-to-zero configuration and cold start optimization settings. Validate scaling annotation combinations for compatibility.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test autoscaling behavior under load, verify scale-to-zero functionality, validate custom scaling parameter application"
           },
           {
@@ -495,7 +495,7 @@
               4
             ],
             "details": "Add --min-scale CLI flag parsing and validation logic. Implement override functionality for default min-scale=0 to support always-on services. Include validation for min-scale values against max-scale limits. Add cost estimation warnings for non-zero min-scale configurations.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test CLI flag parsing, verify min-scale validation logic, test always-on service behavior with non-zero min-scale"
           },
           {
@@ -507,7 +507,7 @@
               5
             ],
             "details": "Create end-to-end test suite that validates complete service creation workflow from CLI command to running service with proper DNS and TLS. Include tests for various configuration combinations, error scenarios, and rollback functionality. Validate service accessibility and scaling behavior in test environment.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "End-to-end integration tests, service accessibility validation, DNS/TLS verification, scaling behavior testing under simulated load"
           }
         ]
@@ -1088,7 +1088,7 @@
     ],
     "metadata": {
       "created": "2025-10-27T08:24:54.008Z",
-      "updated": "2025-11-03T08:16:42.178Z",
+      "updated": "2025-11-03T08:35:07.576Z",
       "description": "Tasks for master context"
     }
   }
