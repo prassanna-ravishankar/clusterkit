@@ -15,6 +15,18 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// getKubeconfig returns the kubeconfig path, using default if empty
+func getKubeconfig(kubeconfig string) string {
+	if kubeconfig != "" {
+		return kubeconfig
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(homeDir, ".kube", "config")
+}
+
 // Component defines the interface for bootstrap components
 type Component interface {
 	Install() error
@@ -344,7 +356,17 @@ func (k *KnativeComponent) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	config, err := clientcmd.BuildConfigFromFlags("", k.kubeconfig)
+	// Use default kubeconfig path if not specified
+	kubeconfig := k.kubeconfig
+	if kubeconfig == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		kubeconfig = filepath.Join(homeDir, ".kube", "config")
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
@@ -390,7 +412,7 @@ func (k *KnativeComponent) ConfigureDomain(domain string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
-	config, err := clientcmd.BuildConfigFromFlags("", k.kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", getKubeconfig(k.kubeconfig))
 	if err != nil {
 		return fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
@@ -528,7 +550,7 @@ func (i *IngressComponent) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	config, err := clientcmd.BuildConfigFromFlags("", i.kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", getKubeconfig(i.kubeconfig))
 	if err != nil {
 		return fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
@@ -705,7 +727,7 @@ func (c *CertManagerComponent) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	config, err := clientcmd.BuildConfigFromFlags("", c.kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", getKubeconfig(c.kubeconfig))
 	if err != nil {
 		return fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
@@ -872,7 +894,7 @@ func (e *ExternalDNSComponent) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	config, err := clientcmd.BuildConfigFromFlags("", e.kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", getKubeconfig(e.kubeconfig))
 	if err != nil {
 		return fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
