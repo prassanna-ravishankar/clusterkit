@@ -33,8 +33,7 @@ resource "google_container_cluster" "primary" {
     evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"
   }
 
-  # Enable Shielded Nodes for security
-  enable_shielded_nodes = true
+  # Note: Shielded Nodes are automatically enabled in Autopilot mode
 
   # Maintenance window
   maintenance_policy {
