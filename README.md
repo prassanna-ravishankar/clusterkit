@@ -15,7 +15,11 @@ Automates setup of:
 
 - Google Cloud account with billing enabled
 - Cloudflare account with a domain
-- Tools installed: `gcloud`, `kubectl`, `terraform`, `helm`
+- Tools installed:
+  - `gcloud` (Google Cloud CLI)
+  - `kubectl` (Kubernetes CLI)
+  - `terraform` (Infrastructure as Code)
+  - `helm` (Kubernetes package manager - **required for all components**)
 
 ### 1. Install ClusterKit CLI
 
@@ -92,9 +96,12 @@ clusterkit bootstrap \
   --cloudflare-token=YOUR_TOKEN
 ```
 
-This takes ~15-20 minutes and:
-- Creates GKE Autopilot cluster with Terraform
-- Installs Knative, Ingress, cert-manager, ExternalDNS
+This takes ~15-20 minutes and uses **Helm** to install:
+- GKE Autopilot cluster (Terraform)
+- Knative Serving (Helm: knative/serving)
+- NGINX Ingress Controller (Helm: ingress-nginx/ingress-nginx)
+- cert-manager (Helm: jetstack/cert-manager)
+- ExternalDNS (Helm: bitnami/external-dns)
 - Configures automatic TLS and DNS
 
 ### 5. Deploy Your First App
@@ -401,17 +408,25 @@ terraform destroy \
 
 ```
 .
-├── terraform/           # GKE infrastructure
-├── k8s/                # Kubernetes manifests
-│   ├── knative/        # Knative Serving
-│   ├── nginx-ingress/  # NGINX Ingress
-│   ├── cert-manager/   # TLS certificates
-│   └── external-dns/   # Cloudflare DNS
-├── cli/                # ClusterKit CLI
+├── terraform/           # GKE infrastructure (Terraform)
+├── cli/                # ClusterKit CLI (Go)
+│   ├── cmd/            # CLI commands
+│   └── pkg/            # Core packages
+│       └── bootstrap/  # Bootstrap orchestration
+│           └── components/ # Helm-based component installers
 └── examples/           # Example applications
 ```
 
+**All Kubernetes components installed via Helm:**
+- Knative: `helm repo add knative https://knative.github.io/helm-charts`
+- NGINX Ingress: `helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx`
+- cert-manager: `helm repo add jetstack https://charts.jetstack.io`
+- ExternalDNS: `helm repo add bitnami https://charts.bitnami.com/bitnami`
+
 ## FAQ
+
+**Q: Why Helm for everything?**
+A: Helm provides consistent package management, easy upgrades, and declarative configuration. All components can be managed with `helm list` and upgraded with `helm upgrade`.
 
 **Q: Why GKE Autopilot vs Cloud Run?**
 A: More flexibility (bring your own Dockerfile, persistent storage, full k8s API) with similar serverless experience.
@@ -423,10 +438,10 @@ A: Scale-to-zero saves money. Apps you don't use don't cost anything.
 A: $5-50/month depending on usage. Much cheaper than traditional GKE cluster.
 
 **Q: Can I use multiple domains?**
-A: Yes, just add more Ingress resources with different hostnames.
+A: Yes! ExternalDNS (via Helm) supports unlimited domains. Just add Ingress resources with different hostnames.
 
 **Q: Can I add databases?**
-A: Yes, deploy StatefulSets. See examples/manifests for reference.
+A: Yes, deploy StatefulSets or use Helm charts (e.g., `helm install postgresql bitnami/postgresql`).
 
 ## License
 
