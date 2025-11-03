@@ -7,6 +7,7 @@ import (
 
 	"github.com/clusterkit/clusterkit/pkg/bootstrap/components"
 	"github.com/clusterkit/clusterkit/pkg/log"
+	"github.com/sirupsen/logrus"
 )
 
 // Orchestrator manages the bootstrap process
@@ -14,7 +15,7 @@ type Orchestrator struct {
 	config *Config
 	ctx    context.Context
 	dryRun bool
-	logger *log.Logger
+	logger *logrus.Logger
 }
 
 // Config contains bootstrap configuration

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -412,7 +413,7 @@ func (i *IngressComponent) Install() error {
 	applyNsCmd := exec.CommandContext(ctx, "kubectl", "apply",
 		"--kubeconfig", i.kubeconfig,
 		"-f", "-")
-	applyNsCmd.Stdin = exec.Command("echo", string(nsOutput)).Stdout
+	applyNsCmd.Stdin = strings.NewReader(string(nsOutput))
 	applyNsCmd.Stdout = os.Stdout
 	applyNsCmd.Stderr = os.Stderr
 	_ = applyNsCmd.Run() // Ignore error if namespace exists
@@ -765,7 +766,7 @@ func (e *ExternalDNSComponent) Install() error {
 	applyNsCmd := exec.CommandContext(ctx, "kubectl", "apply",
 		"--kubeconfig", e.kubeconfig,
 		"-f", "-")
-	applyNsCmd.Stdin = exec.Command("echo", string(nsOutput)).Stdout
+	applyNsCmd.Stdin = strings.NewReader(string(nsOutput))
 	applyNsCmd.Stdout = os.Stdout
 	applyNsCmd.Stderr = os.Stderr
 	_ = applyNsCmd.Run() // Ignore error if namespace exists

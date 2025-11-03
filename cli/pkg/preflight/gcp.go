@@ -7,9 +7,6 @@ import (
 
 	"google.golang.org/api/cloudresourcemanager/v1"
 	"google.golang.org/api/compute/v1"
-	"google.golang.org/api/container/v1"
-	"google.golang.org/api/iam/v1"
-	"google.golang.org/api/option"
 	"google.golang.org/api/serviceusage/v1"
 )
 

@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/clusterkit/clusterkit/pkg/log"
+	"github.com/sirupsen/logrus"
 )
 
 // DocumentationGenerator generates bootstrap documentation
 type DocumentationGenerator struct {
 	config *Config
 	result *BootstrapResult
-	logger *log.Logger
+	logger *logrus.Logger
 }
 
 // NewDocumentationGenerator creates a new documentation generator

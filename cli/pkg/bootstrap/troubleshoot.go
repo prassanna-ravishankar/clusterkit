@@ -10,6 +10,7 @@ import (
 
 	"github.com/clusterkit/clusterkit/pkg/k8s"
 	"github.com/clusterkit/clusterkit/pkg/log"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -17,7 +18,7 @@ import (
 // Troubleshooter performs diagnostic checks and collects troubleshooting information
 type Troubleshooter struct {
 	k8sClient *k8s.Client
-	logger    *log.Logger
+	logger    *logrus.Logger
 	ctx       context.Context
 }
 

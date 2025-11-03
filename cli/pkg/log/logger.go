@@ -156,3 +156,8 @@ func SetLevel(level string) error {
 func GetLevel() string {
 	return Logger.Level.String()
 }
+
+// GetLogger returns the global logger instance
+func GetLogger() *logrus.Logger {
+	return Logger
+}
