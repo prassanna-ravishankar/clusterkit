@@ -1,0 +1,31 @@
+# ClusterKit Configuration Example
+# Copy to ~/.clusterkit/config.yaml or .clusterkit.yaml
+
+# GCP Settings
+project_id: my-gcp-project
+region: us-central1
+cluster_name: clusterkit
+
+# Primary domain for applications
+domain: example.com
+
+# Cloudflare API token for DNS management
+# Create at: https://dash.cloudflare.com/profile/api-tokens
+# Required permissions: Zone:Zone:Read, Zone:DNS:Edit
+cloudflare_token: your-cloudflare-api-token-here
+
+# Kubernetes Settings
+# kubeconfig: ~/.kube/config  # Path to kubeconfig (default shown)
+# context: ""                  # Kubernetes context to use (default: current context)
+
+# Default settings for new applications
+defaults:
+  min_scale: 0           # Minimum replicas (0 = scale to zero)
+  max_scale: 10          # Maximum replicas
+  concurrency: 10        # Target concurrent requests per pod
+  memory: 256Mi          # Default memory limit
+  cpu: 1000m             # Default CPU limit (1000m = 1 core)
+
+# Logging configuration
+log_level: info          # debug, info, warn, error
+log_format: text         # text or json
