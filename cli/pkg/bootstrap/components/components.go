@@ -307,7 +307,7 @@ func (e *ExternalDNSComponent) Install() error {
 		"--set", "resources.limits.cpu=100m",
 		"--set", "resources.limits.memory=128Mi",
 		// Use Spot Pods for cost savings (~60-91% discount)
-		"--set", `nodeSelector.cloud\.google\.com/gke-spot=true`,
+		"--set-string", `nodeSelector.cloud\.google\.com/gke-spot=true`,
 		// Tolerate Spot VM nodes for cost savings
 		"--set", "tolerations[0].key=cloud.google.com/gke-spot",
 		"--set", "tolerations[0].operator=Equal",
