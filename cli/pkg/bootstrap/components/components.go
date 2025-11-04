@@ -284,7 +284,7 @@ func (e *ExternalDNSComponent) Install() error {
 		return fmt.Errorf("failed to update Helm repos: %w", err)
 	}
 
-	// Install ExternalDNS with Helm
+	// Install ExternalDNS with Helm using official registry.k8s.io image
 	installCmd := exec.CommandContext(ctx, "helm", "install", "external-dns",
 		"bitnami/external-dns",
 		"--namespace", "external-dns",
@@ -296,6 +296,10 @@ func (e *ExternalDNSComponent) Install() error {
 		"--set", "txtOwnerId=clusterkit",
 		"--set", "sources[0]=service",
 		"--set", "sources[1]=ingress",
+		"--set", "image.registry=registry.k8s.io",
+		"--set", "image.repository=external-dns/external-dns",
+		"--set", "image.tag=v0.15.0",
+		"--set", "global.security.allowInsecureImages=true",
 		"--wait",
 		"--timeout", "5m")
 
@@ -366,9 +370,9 @@ func (e *ExternalDNSComponent) HealthCheck() error {
 		return fmt.Errorf("external-dns namespace not found: %w", err)
 	}
 
-	// Check ExternalDNS pods are running
+	// Check ExternalDNS pods are running (using correct Bitnami label)
 	pods, err := clientset.CoreV1().Pods("external-dns").List(ctx, metav1.ListOptions{
-		LabelSelector: "app=external-dns",
+		LabelSelector: "app.kubernetes.io/name=external-dns",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list ExternalDNS pods: %w", err)
@@ -389,8 +393,8 @@ func (e *ExternalDNSComponent) HealthCheck() error {
 		return fmt.Errorf("no ExternalDNS pods running")
 	}
 
-	// Check Cloudflare secret exists
-	_, err = clientset.CoreV1().Secrets("external-dns").Get(ctx, "cloudflare-api-token", metav1.GetOptions{})
+	// Check Cloudflare secret exists (Bitnami chart creates it as "external-dns")
+	_, err = clientset.CoreV1().Secrets("external-dns").Get(ctx, "external-dns", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("Cloudflare API token secret not found: %w", err)
 	}
