@@ -20,6 +20,14 @@ resource "google_container_cluster" "primary" {
     services_ipv4_cidr_block = ""
   }
 
+  # Configure Spot VMs as default for cost savings (~70% cheaper)
+  node_pool_defaults {
+    node_config_defaults {
+      # Enable Spot VMs (preemptible) for all autopilot-created node pools
+      spot = true
+    }
+  }
+
   # Deletion protection
   deletion_protection = var.deletion_protection
 
@@ -37,4 +45,5 @@ resource "google_container_cluster" "primary" {
   # - Binary Authorization (configurable via GCP console if needed)
   # - Node auto-provisioning, scaling, and repair
   # - Security patches and upgrades
+  # - Spot VMs enabled for ~70% cost reduction
 }

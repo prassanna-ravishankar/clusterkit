@@ -301,6 +301,16 @@ func (e *ExternalDNSComponent) Install() error {
 		"--set", "image.repository=external-dns/external-dns",
 		"--set", "image.tag=v0.15.0",
 		"--set", "global.security.allowInsecureImages=true",
+		// Right-size resource requests for cost optimization
+		"--set", "resources.requests.cpu=50m",
+		"--set", "resources.requests.memory=64Mi",
+		"--set", "resources.limits.cpu=100m",
+		"--set", "resources.limits.memory=128Mi",
+		// Tolerate Spot VM nodes for cost savings
+		"--set", "tolerations[0].key=cloud.google.com/gke-spot",
+		"--set", "tolerations[0].operator=Equal",
+		"--set", "tolerations[0].value=true",
+		"--set", "tolerations[0].effect=NoSchedule",
 		"--wait",
 		"--timeout", "5m")
 
