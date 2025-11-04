@@ -32,6 +32,9 @@ type Config struct {
 	// Component Flags
 	SkipTerraform   bool
 	SkipExternalDNS bool
+	SkipKnative     bool
+	SkipIngress     bool
+	SkipCertManager bool
 
 	// Kubernetes Configuration
 	Kubeconfig string

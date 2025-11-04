@@ -65,15 +65,27 @@ func (v *Validator) Run() (*ValidationResult, error) {
 	// Cluster connectivity
 	result.Checks = append(result.Checks, v.checkClusterConnectivity())
 
-	// Component health checks
-	result.Checks = append(result.Checks, v.checkKnativeInstallation()...)
-	result.Checks = append(result.Checks, v.checkIngressInstallation()...)
-	result.Checks = append(result.Checks, v.checkCertManagerInstallation()...)
-	result.Checks = append(result.Checks, v.checkExternalDNSInstallation()...)
+	// Component health checks (skip if component not installed)
+	if !v.config.SkipKnative {
+		result.Checks = append(result.Checks, v.checkKnativeInstallation()...)
+	}
+	if !v.config.SkipIngress {
+		result.Checks = append(result.Checks, v.checkIngressInstallation()...)
+	}
+	if !v.config.SkipCertManager {
+		result.Checks = append(result.Checks, v.checkCertManagerInstallation()...)
+	}
+	if !v.config.SkipExternalDNS {
+		result.Checks = append(result.Checks, v.checkExternalDNSInstallation()...)
+	}
 
-	// Functional tests
-	result.Checks = append(result.Checks, v.checkDNSConfiguration())
-	result.Checks = append(result.Checks, v.checkTLSConfiguration())
+	// Functional tests (skip if dependencies not installed)
+	if !v.config.SkipExternalDNS {
+		result.Checks = append(result.Checks, v.checkDNSConfiguration())
+	}
+	if !v.config.SkipCertManager {
+		result.Checks = append(result.Checks, v.checkTLSConfiguration())
+	}
 
 	// Count failures
 	for _, check := range result.Checks {
