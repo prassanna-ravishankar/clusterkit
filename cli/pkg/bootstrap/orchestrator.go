@@ -31,9 +31,6 @@ type Config struct {
 
 	// Component Flags
 	SkipTerraform   bool
-	SkipKnative     bool
-	SkipIngress     bool
-	SkipCertManager bool
 	SkipExternalDNS bool
 
 	// Kubernetes Configuration
@@ -114,39 +111,11 @@ func (o *Orchestrator) Run(progressCallback func(StepResult)) (*BootstrapResult,
 			healthCheck: o.checkClusterHealth,
 		},
 		{
-			name:      "Install Knative Serving",
-			component: "knative",
-			skip:      o.config.SkipKnative,
-			execute:   o.installKnative,
-			healthCheck: o.checkKnativeHealth,
-		},
-		{
-			name:      "Install NGINX Ingress Controller",
-			component: "ingress",
-			skip:      o.config.SkipIngress,
-			execute:   o.installIngress,
-			healthCheck: o.checkIngressHealth,
-		},
-		{
-			name:      "Install cert-manager",
-			component: "cert-manager",
-			skip:      o.config.SkipCertManager,
-			execute:   o.installCertManager,
-			healthCheck: o.checkCertManagerHealth,
-		},
-		{
 			name:      "Install ExternalDNS",
 			component: "external-dns",
 			skip:      o.config.SkipExternalDNS,
 			execute:   o.installExternalDNS,
 			healthCheck: o.checkExternalDNSHealth,
-		},
-		{
-			name:      "Configure Knative Domain",
-			component: "knative-domain",
-			skip:      o.config.SkipKnative,
-			execute:   o.configureKnativeDomain,
-			healthCheck: nil,
 		},
 		{
 			name:      "Verify End-to-End Functionality",
@@ -285,66 +254,6 @@ func (o *Orchestrator) checkClusterHealth() error {
 	return checker.Check()
 }
 
-// installKnative installs Knative Serving
-func (o *Orchestrator) installKnative() error {
-	o.logger.Info("Installing Knative Serving")
-
-	knative := components.NewKnativeComponent(o.config.Kubeconfig)
-	if err := knative.Install(); err != nil {
-		return fmt.Errorf("knative install failed: %w", err)
-	}
-
-	return nil
-}
-
-// checkKnativeHealth verifies Knative is healthy
-func (o *Orchestrator) checkKnativeHealth() error {
-	o.logger.Debug("Checking Knative health")
-
-	knative := components.NewKnativeComponent(o.config.Kubeconfig)
-	return knative.HealthCheck()
-}
-
-// installIngress installs NGINX Ingress Controller
-func (o *Orchestrator) installIngress() error {
-	o.logger.Info("Installing NGINX Ingress Controller")
-
-	ingress := components.NewIngressComponent(o.config.Kubeconfig)
-	if err := ingress.Install(); err != nil {
-		return fmt.Errorf("ingress install failed: %w", err)
-	}
-
-	return nil
-}
-
-// checkIngressHealth verifies Ingress is healthy
-func (o *Orchestrator) checkIngressHealth() error {
-	o.logger.Debug("Checking Ingress health")
-
-	ingress := components.NewIngressComponent(o.config.Kubeconfig)
-	return ingress.HealthCheck()
-}
-
-// installCertManager installs cert-manager
-func (o *Orchestrator) installCertManager() error {
-	o.logger.Info("Installing cert-manager")
-
-	certManager := components.NewCertManagerComponent(o.config.Kubeconfig)
-	if err := certManager.Install(); err != nil {
-		return fmt.Errorf("cert-manager install failed: %w", err)
-	}
-
-	return nil
-}
-
-// checkCertManagerHealth verifies cert-manager is healthy
-func (o *Orchestrator) checkCertManagerHealth() error {
-	o.logger.Debug("Checking cert-manager health")
-
-	certManager := components.NewCertManagerComponent(o.config.Kubeconfig)
-	return certManager.HealthCheck()
-}
-
 // installExternalDNS installs ExternalDNS
 func (o *Orchestrator) installExternalDNS() error {
 	o.logger.Info("Installing ExternalDNS")
@@ -363,18 +272,6 @@ func (o *Orchestrator) checkExternalDNSHealth() error {
 
 	externalDNS := components.NewExternalDNSComponent(o.config.Kubeconfig, o.config.CloudflareToken)
 	return externalDNS.HealthCheck()
-}
-
-// configureKnativeDomain configures the Knative domain
-func (o *Orchestrator) configureKnativeDomain() error {
-	o.logger.Infof("Configuring Knative domain: %s", o.config.Domain)
-
-	knative := components.NewKnativeComponent(o.config.Kubeconfig)
-	if err := knative.ConfigureDomain(o.config.Domain); err != nil {
-		return fmt.Errorf("domain configuration failed: %w", err)
-	}
-
-	return nil
 }
 
 // runValidation runs end-to-end validation
@@ -426,15 +323,6 @@ func (o *Orchestrator) rollbackStep(step StepResult) error {
 	case "terraform":
 		terraform := components.NewTerraformComponent(o.config.ProjectID, o.config.Region, o.config.ClusterName)
 		return terraform.Destroy()
-	case "knative":
-		knative := components.NewKnativeComponent(o.config.Kubeconfig)
-		return knative.Uninstall()
-	case "ingress":
-		ingress := components.NewIngressComponent(o.config.Kubeconfig)
-		return ingress.Uninstall()
-	case "cert-manager":
-		certManager := components.NewCertManagerComponent(o.config.Kubeconfig)
-		return certManager.Uninstall()
 	case "external-dns":
 		externalDNS := components.NewExternalDNSComponent(o.config.Kubeconfig, o.config.CloudflareToken)
 		return externalDNS.Uninstall()

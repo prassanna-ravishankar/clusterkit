@@ -205,9 +205,8 @@ func (d *DocumentationGenerator) generateConfigDoc(path string) error {
 		installed bool
 	}{
 		{"Terraform (GKE Infrastructure)", !d.config.SkipTerraform},
-		{"Knative Serving", !d.config.SkipKnative},
-		{"NGINX Ingress Controller", !d.config.SkipIngress},
-		{"cert-manager", !d.config.SkipCertManager},
+		{"GKE Ingress", true}, // Built-in to GKE
+		{"GKE Managed Certificates", true}, // Built-in to GKE
 		{"ExternalDNS", !d.config.SkipExternalDNS},
 	}
 
