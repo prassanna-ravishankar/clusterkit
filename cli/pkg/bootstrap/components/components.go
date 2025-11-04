@@ -284,8 +284,9 @@ func (e *ExternalDNSComponent) Install() error {
 		return fmt.Errorf("failed to update Helm repos: %w", err)
 	}
 
-	// Install ExternalDNS with Helm using official registry.k8s.io image
-	installCmd := exec.CommandContext(ctx, "helm", "install", "external-dns",
+	// Install or upgrade ExternalDNS with Helm using official registry.k8s.io image
+	// Use 'upgrade --install' for idempotency (works whether release exists or not)
+	installCmd := exec.CommandContext(ctx, "helm", "upgrade", "--install", "external-dns",
 		"bitnami/external-dns",
 		"--namespace", "external-dns",
 		"--create-namespace",
