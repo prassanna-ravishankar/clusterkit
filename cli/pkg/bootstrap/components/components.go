@@ -313,6 +313,33 @@ func (e *ExternalDNSComponent) Install() error {
 		return fmt.Errorf("failed to install ExternalDNS: %w", err)
 	}
 
+	// Patch ClusterRole to add missing endpoints permission (needed by external-dns v0.15.0)
+	fmt.Println("Patching RBAC permissions for Endpoints API...")
+	patchCmd := exec.CommandContext(ctx, "kubectl", "patch", "clusterrole", "external-dns-external-dns",
+		"--type=json",
+		"-p=[{\"op\":\"add\",\"path\":\"/rules/-\",\"value\":{\"apiGroups\":[\"\"],\"resources\":[\"endpoints\"],\"verbs\":[\"get\",\"list\",\"watch\"]}}]")
+	if e.kubeconfig != "" {
+		patchCmd.Args = append(patchCmd.Args, "--kubeconfig", e.kubeconfig)
+	}
+	patchCmd.Stdout = os.Stdout
+	patchCmd.Stderr = os.Stderr
+	if err := patchCmd.Run(); err != nil {
+		return fmt.Errorf("failed to patch ClusterRole: %w", err)
+	}
+
+	// Restart ExternalDNS to pick up the new permissions
+	fmt.Println("Restarting ExternalDNS to apply permissions...")
+	restartCmd := exec.CommandContext(ctx, "kubectl", "rollout", "restart", "deployment/external-dns",
+		"-n", "external-dns")
+	if e.kubeconfig != "" {
+		restartCmd.Args = append(restartCmd.Args, "--kubeconfig", e.kubeconfig)
+	}
+	restartCmd.Stdout = os.Stdout
+	restartCmd.Stderr = os.Stderr
+	if err := restartCmd.Run(); err != nil {
+		return fmt.Errorf("failed to restart ExternalDNS: %w", err)
+	}
+
 	fmt.Println("✓ ExternalDNS installed successfully")
 	return nil
 }
