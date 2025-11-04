@@ -411,33 +411,69 @@ func (v *Validator) checkExternalDNSInstallation() []ValidationCheck {
 
 // checkDNSConfiguration verifies DNS is configured correctly
 func (v *Validator) checkDNSConfiguration() ValidationCheck {
-	// Check if domain is configured in Knative
-	// This is a basic check - more comprehensive testing would require deploying a test service
-	configMap, err := v.k8sClient.Clientset.CoreV1().ConfigMaps("knative-serving").Get(v.ctx, "config-domain", metav1.GetOptions{})
+	// Check if ExternalDNS is properly configured with Cloudflare
+	// Verify ExternalDNS deployment exists and has Cloudflare provider configured
+	deployments, err := v.k8sClient.Clientset.AppsV1().Deployments("external-dns").List(v.ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=external-dns",
+	})
 	if err != nil {
 		return ValidationCheck{
 			Name:     "DNS Configuration",
 			Category: "Configuration",
 			Passed:   false,
-			Message:  "Cannot read Knative domain configuration",
+			Message:  "Cannot find ExternalDNS deployment",
 			Error:    err,
 		}
 	}
 
-	if _, exists := configMap.Data[v.config.Domain]; exists {
+	if len(deployments.Items) == 0 {
 		return ValidationCheck{
 			Name:     "DNS Configuration",
 			Category: "Configuration",
-			Passed:   true,
-			Message:  fmt.Sprintf("Domain %s configured in Knative", v.config.Domain),
+			Passed:   false,
+			Message:  "ExternalDNS deployment not found",
+		}
+	}
+
+	// Check that Cloudflare secret exists
+	_, err = v.k8sClient.Clientset.CoreV1().Secrets("external-dns").Get(v.ctx, "external-dns", metav1.GetOptions{})
+	if err != nil {
+		return ValidationCheck{
+			Name:     "DNS Configuration",
+			Category: "Configuration",
+			Passed:   false,
+			Message:  "ExternalDNS Cloudflare secret not found",
+			Error:    err,
+		}
+	}
+
+	// Verify deployment has Cloudflare provider in args
+	deployment := deployments.Items[0]
+	hasCloudflare := false
+	if deployment.Spec.Template.Spec.Containers != nil && len(deployment.Spec.Template.Spec.Containers) > 0 {
+		container := deployment.Spec.Template.Spec.Containers[0]
+		for _, arg := range container.Args {
+			if strings.Contains(arg, "--provider=cloudflare") || strings.Contains(arg, "cloudflare") {
+				hasCloudflare = true
+				break
+			}
+		}
+	}
+
+	if !hasCloudflare {
+		return ValidationCheck{
+			Name:     "DNS Configuration",
+			Category: "Configuration",
+			Passed:   false,
+			Message:  "ExternalDNS not configured with Cloudflare provider",
 		}
 	}
 
 	return ValidationCheck{
 		Name:     "DNS Configuration",
 		Category: "Configuration",
-		Passed:   false,
-		Message:  fmt.Sprintf("Domain %s not found in Knative configuration", v.config.Domain),
+		Passed:   true,
+		Message:  fmt.Sprintf("ExternalDNS configured with Cloudflare provider for domain %s", v.config.Domain),
 	}
 }
 
