@@ -7,6 +7,8 @@ This guide explains how to deploy your applications to the ClusterKit GKE Autopi
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Deployment Patterns](#deployment-patterns)
+- [Helm Deployments](#helm-deployments)
+- [Database Configuration](#database-configuration)
 - [Exposing Your Application](#exposing-your-application)
 - [SSL/TLS Configuration](#ssltls-configuration)
 - [Cost Optimization](#cost-optimization)
@@ -341,6 +343,768 @@ spec:
   domains:
   - api.yourdomain.com
 ```
+
+---
+
+## Helm Deployments
+
+**Helm** is the package manager for Kubernetes. Use it to deploy complex applications with pre-configured charts.
+
+### Install Helm
+
+```bash
+# Install Helm CLI
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Verify installation
+helm version
+```
+
+### Pattern 1: Deploy Public Charts
+
+**Example: Deploy PostgreSQL**
+
+```bash
+# Add Bitnami repository
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+
+# Install PostgreSQL
+helm install my-postgres bitnami/postgresql \
+  --namespace database \
+  --create-namespace \
+  --set auth.postgresPassword=supersecret \
+  --set primary.persistence.size=10Gi \
+  --set primary.resources.requests.cpu=100m \
+  --set primary.resources.requests.memory=256Mi \
+  --set primary.nodeSelector."cloud\.google\.com/gke-spot"=true \
+  --set primary.tolerations[0].key=cloud.google.com/gke-spot \
+  --set primary.tolerations[0].operator=Equal \
+  --set primary.tolerations[0].value=true \
+  --set primary.tolerations[0].effect=NoSchedule
+
+# Check status
+helm status my-postgres -n database
+
+# Get connection info
+kubectl get secret --namespace database my-postgres-postgresql -o jsonpath="{.data.postgres-password}" | base64 -d
+```
+
+**Example: Deploy Redis**
+
+```bash
+# Install Redis
+helm install my-redis bitnami/redis \
+  --namespace cache \
+  --create-namespace \
+  --set master.resources.requests.cpu=50m \
+  --set master.resources.requests.memory=64Mi \
+  --set master.nodeSelector."cloud\.google\.com/gke-spot"=true \
+  --set master.tolerations[0].key=cloud.google.com/gke-spot \
+  --set master.tolerations[0].operator=Equal \
+  --set master.tolerations[0].value=true \
+  --set master.tolerations[0].effect=NoSchedule
+
+# Get password
+export REDIS_PASSWORD=$(kubectl get secret --namespace cache my-redis -o jsonpath="{.data.redis-password}" | base64 -d)
+
+# Connect from within cluster
+redis-cli -h my-redis-master.cache.svc.cluster.local -a $REDIS_PASSWORD
+```
+
+### Pattern 2: Custom Helm Charts
+
+**Create your own chart:**
+
+```bash
+# Create chart structure
+helm create my-app
+
+# Directory structure
+my-app/
+├── Chart.yaml          # Chart metadata
+├── values.yaml         # Default configuration
+├── charts/             # Chart dependencies
+└── templates/
+    ├── deployment.yaml
+    ├── service.yaml
+    ├── ingress.yaml
+    └── _helpers.tpl
+```
+
+**values.yaml (with Spot pods and cost optimization):**
+
+```yaml
+replicaCount: 2
+
+image:
+  repository: gcr.io/baldmaninc/my-app
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+# Cost optimization: Use Spot pods
+nodeSelector:
+  cloud.google.com/gke-spot: "true"
+
+tolerations:
+- key: cloud.google.com/gke-spot
+  operator: Equal
+  value: "true"
+  effect: NoSchedule
+
+# Right-size resources
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: gce
+  annotations:
+    networking.gke.io/managed-certificates: "my-app-cert"
+  hosts:
+  - host: my-app.yourdomain.com
+    paths:
+    - path: /
+      pathType: Prefix
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# Database connection (Cloud SQL)
+database:
+  enabled: true
+  host: 127.0.0.1  # Cloud SQL Proxy
+  port: 5432
+  name: myapp_production
+  user: postgres
+  passwordSecret: db-credentials
+  passwordKey: password
+
+# Cloud SQL Proxy sidecar
+cloudsql:
+  enabled: true
+  connectionName: baldmaninc:us-central1:clusterkit-db
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+```
+
+**templates/deployment.yaml:**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "my-app.fullname" . }}
+  labels:
+    {{- include "my-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "my-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "my-app.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+        {{- if .Values.database.enabled }}
+        env:
+        - name: DB_HOST
+          value: {{ .Values.database.host }}
+        - name: DB_PORT
+          value: "{{ .Values.database.port }}"
+        - name: DB_NAME
+          value: {{ .Values.database.name }}
+        - name: DB_USER
+          value: {{ .Values.database.user }}
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.passwordSecret }}
+              key: {{ .Values.database.passwordKey }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.cloudsql.enabled }}
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+        args:
+        - "--structured-logs"
+        - "--port={{ .Values.database.port }}"
+        - "{{ .Values.cloudsql.connectionName }}"
+        resources:
+          {{- toYaml .Values.cloudsql.resources | nindent 12 }}
+      {{- end }}
+```
+
+**Install your chart:**
+
+```bash
+# Test rendering
+helm template my-app ./my-app
+
+# Dry-run install
+helm install my-app ./my-app --dry-run --debug
+
+# Actually install
+helm install my-app ./my-app \
+  --namespace production \
+  --create-namespace
+
+# Upgrade existing release
+helm upgrade my-app ./my-app \
+  --namespace production
+
+# Rollback if needed
+helm rollback my-app -n production
+```
+
+### Pattern 3: Using Helmfile (Multiple Charts)
+
+**Install Helmfile:**
+
+```bash
+# macOS
+brew install helmfile
+
+# Linux
+wget https://github.com/helmfile/helmfile/releases/download/v0.158.0/helmfile_linux_amd64
+chmod +x helmfile_linux_amd64
+sudo mv helmfile_linux_amd64 /usr/local/bin/helmfile
+```
+
+**helmfile.yaml (deploy multiple apps):**
+
+```yaml
+repositories:
+- name: bitnami
+  url: https://charts.bitnami.com/bitnami
+
+releases:
+# PostgreSQL
+- name: postgres
+  namespace: database
+  chart: bitnami/postgresql
+  version: 13.2.0
+  values:
+  - auth:
+      postgresPassword: supersecret
+    primary:
+      persistence:
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+# Redis
+- name: redis
+  namespace: cache
+  chart: bitnami/redis
+  version: 18.4.0
+  values:
+  - master:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+# Your app
+- name: my-app
+  namespace: production
+  chart: ./my-app
+  values:
+  - replicaCount: 3
+    image:
+      tag: "v1.2.3"
+```
+
+**Deploy everything:**
+
+```bash
+# Install/upgrade all releases
+helmfile sync
+
+# Only install specific release
+helmfile -l name=postgres sync
+
+# Diff before applying
+helmfile diff
+```
+
+### Useful Helm Commands
+
+```bash
+# List installed releases
+helm list --all-namespaces
+
+# Get release values
+helm get values my-app -n production
+
+# View release history
+helm history my-app -n production
+
+# Uninstall release
+helm uninstall my-app -n production
+
+# Search for charts
+helm search hub redis
+helm search repo bitnami/
+
+# Show chart info
+helm show chart bitnami/postgresql
+helm show values bitnami/postgresql
+
+# Download chart
+helm pull bitnami/postgresql --untar
+```
+
+---
+
+## Database Configuration
+
+### Recommended: Cloud SQL (Managed PostgreSQL/MySQL)
+
+**For most projects, use Google Cloud SQL** instead of running databases in Kubernetes.
+
+**Why Cloud SQL:**
+- ✅ Automatic backups and point-in-time recovery
+- ✅ High availability and failover
+- ✅ Automatic patches and upgrades
+- ✅ No Spot pod interruptions
+- ✅ Professional monitoring and support
+- ✅ Better performance (optimized hardware)
+
+### Setup Cloud SQL PostgreSQL
+
+**1. Create Cloud SQL instance:**
+
+```bash
+# Create PostgreSQL instance (small, zonal)
+gcloud sql instances create clusterkit-db \
+  --database-version=POSTGRES_15 \
+  --tier=db-f1-micro \
+  --region=us-central1 \
+  --backup \
+  --availability-type=zonal \
+  --storage-type=SSD \
+  --storage-size=10GB
+
+# For production HA (costs ~2x):
+gcloud sql instances create clusterkit-db-prod \
+  --database-version=POSTGRES_15 \
+  --tier=db-g1-small \
+  --region=us-central1 \
+  --backup \
+  --availability-type=regional \
+  --storage-type=SSD \
+  --storage-size=20GB
+```
+
+**2. Set database password:**
+
+```bash
+# Set postgres user password
+gcloud sql users set-password postgres \
+  --instance=clusterkit-db \
+  --password=YOUR_SECURE_PASSWORD_HERE
+
+# Or generate secure password
+export DB_PASSWORD=$(openssl rand -base64 32)
+gcloud sql users set-password postgres \
+  --instance=clusterkit-db \
+  --password=$DB_PASSWORD
+```
+
+**3. Create application database:**
+
+```bash
+# Create database
+gcloud sql databases create myapp_production \
+  --instance=clusterkit-db
+
+# Get connection name (needed for Cloud SQL Proxy)
+export CONNECTION_NAME=$(gcloud sql instances describe clusterkit-db --format='value(connectionName)')
+echo $CONNECTION_NAME
+# Output: baldmaninc:us-central1:clusterkit-db
+```
+
+**4. Setup IAM for Cloud SQL Proxy:**
+
+```bash
+# Create GCP service account
+gcloud iam service-accounts create cloudsql-proxy \
+  --display-name="Cloud SQL Proxy for GKE"
+
+# Grant Cloud SQL Client role
+gcloud projects add-iam-policy-binding baldmaninc \
+  --member="serviceAccount:cloudsql-proxy@baldmaninc.iam.gserviceaccount.com" \
+  --role="roles/cloudsql.client"
+
+# Enable Workload Identity binding
+gcloud iam service-accounts add-iam-policy-binding \
+  cloudsql-proxy@baldmaninc.iam.gserviceaccount.com \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="serviceAccount:baldmaninc.svc.id.goog[default/cloudsql-proxy]"
+
+# Create Kubernetes service account
+kubectl create serviceaccount cloudsql-proxy
+
+# Annotate for Workload Identity
+kubectl annotate serviceaccount cloudsql-proxy \
+  iam.gke.io/gcp-service-account=cloudsql-proxy@baldmaninc.iam.gserviceaccount.com
+```
+
+**5. Deploy app with Cloud SQL Proxy sidecar:**
+
+```yaml
+# app-with-cloudsql.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+type: Opaque
+stringData:
+  password: YOUR_SECURE_PASSWORD_HERE
+  username: postgres
+  database: myapp_production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      # Use Workload Identity service account
+      serviceAccountName: cloudsql-proxy
+
+      # Cost optimization
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+      containers:
+      # Application container
+      - name: app
+        image: gcr.io/baldmaninc/my-app:latest
+        ports:
+        - containerPort: 8080
+        env:
+        # Database connection via Cloud SQL Proxy (localhost)
+        - name: DB_HOST
+          value: "127.0.0.1"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: database
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        # Connection string format (for some apps)
+        - name: DATABASE_URL
+          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+      # Cloud SQL Proxy sidecar
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+        args:
+        - "--structured-logs"
+        - "--port=5432"
+        - "baldmaninc:us-central1:clusterkit-db"
+        securityContext:
+          runAsNonRoot: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+```
+
+**Deploy:**
+
+```bash
+# Create secret with actual password
+kubectl create secret generic db-credentials \
+  --from-literal=username=postgres \
+  --from-literal=password=YOUR_SECURE_PASSWORD \
+  --from-literal=database=myapp_production
+
+# Deploy app
+kubectl apply -f app-with-cloudsql.yaml
+
+# Test connection
+kubectl exec -it deployment/my-app -- env | grep DB_
+```
+
+### Cost Comparison
+
+| Instance Type | vCPUs | RAM | Storage | Monthly Cost | Use Case |
+|---------------|-------|-----|---------|--------------|----------|
+| db-f1-micro | Shared | 0.6GB | 10GB | ~$7 | Dev/Test |
+| db-g1-small | Shared | 1.7GB | 20GB | ~$25 | Small production |
+| db-n1-standard-1 | 1 | 3.75GB | 50GB | ~$50 | Medium production |
+| db-n1-standard-2 | 2 | 7.5GB | 100GB | ~$100 | Large production |
+
+**Add regional HA:** Multiply cost by ~2x for `--availability-type=regional`
+
+### Alternative: Redis for Caching (In-Cluster)
+
+**For ephemeral data** (sessions, cache), Redis in-cluster is fine:
+
+```yaml
+# redis-cache.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 512Mi
+        command:
+        - redis-server
+        - --appendonly
+        - "no"
+        - --maxmemory
+        - "256mb"
+        - --maxmemory-policy
+        - "allkeys-lru"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: cache
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+```
+
+**Connect from app:**
+
+```yaml
+env:
+- name: REDIS_HOST
+  value: "redis.cache.svc.cluster.local"
+- name: REDIS_PORT
+  value: "6379"
+```
+
+### Database Migrations
+
+**Using Kubernetes Jobs:**
+
+```yaml
+# migration-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration-v1-2-3
+spec:
+  template:
+    spec:
+      serviceAccountName: cloudsql-proxy
+      restartPolicy: Never
+
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      tolerations:
+      - key: cloud.google.com/gke-spot
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+      containers:
+      # Migration container
+      - name: migrate
+        image: gcr.io/baldmaninc/my-app:latest
+        command: ["npm", "run", "migrate"]
+        env:
+        - name: DB_HOST
+          value: "127.0.0.1"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+
+      # Cloud SQL Proxy
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+        args:
+        - "--structured-logs"
+        - "--port=5432"
+        - "baldmaninc:us-central1:clusterkit-db"
+```
+
+**Run migration:**
+
+```bash
+# Run migration job
+kubectl apply -f migration-job.yaml
+
+# Watch progress
+kubectl logs job/db-migration-v1-2-3 -f
+
+# Clean up after success
+kubectl delete job db-migration-v1-2-3
+```
+
+### Backup and Recovery
+
+**Cloud SQL automatic backups:**
+
+```bash
+# Enable backups (already enabled if created with --backup)
+gcloud sql instances patch clusterkit-db --backup-start-time=03:00
+
+# List backups
+gcloud sql backups list --instance=clusterkit-db
+
+# Restore from backup
+gcloud sql backups restore BACKUP_ID \
+  --backup-instance=clusterkit-db \
+  --backup-id=BACKUP_ID
+
+# Create on-demand backup
+gcloud sql backups create --instance=clusterkit-db
+```
+
+**Export database:**
+
+```bash
+# Export to Cloud Storage
+gcloud sql export sql clusterkit-db gs://baldmaninc-backups/myapp-$(date +%Y%m%d).sql \
+  --database=myapp_production
+
+# Import from Cloud Storage
+gcloud sql import sql clusterkit-db gs://baldmaninc-backups/myapp-20250104.sql \
+  --database=myapp_production
+```
+
+### Database Best Practices
+
+1. **Always use Cloud SQL Proxy** - Never expose database directly
+2. **Use secrets for credentials** - Never hardcode passwords
+3. **Enable automated backups** - Minimum 7-day retention
+4. **Run migrations as Jobs** - Not in app startup
+5. **Use connection pooling** - PgBouncer for high-traffic apps
+6. **Monitor query performance** - Enable Cloud SQL Insights
+7. **Test disaster recovery** - Practice restoring from backups
+
+### When NOT to Use Cloud SQL
+
+**Use in-cluster operators if:**
+- You have dedicated ops team (24/7)
+- Need extreme customization
+- Cost is absolutely critical
+- Running 100+ database instances
+
+**For ClusterKit's use case:** Cloud SQL is strongly recommended.
 
 ---
 
