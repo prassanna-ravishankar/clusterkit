@@ -311,7 +311,7 @@ func (e *ExternalDNSComponent) Install() error {
 		// Tolerate Spot VM nodes for cost savings
 		"--set", "tolerations[0].key=cloud.google.com/gke-spot",
 		"--set", "tolerations[0].operator=Equal",
-		"--set", "tolerations[0].value=true",
+		"--set-string", "tolerations[0].value=true",
 		"--set", "tolerations[0].effect=NoSchedule",
 		"--wait",
 		"--timeout", "5m")
