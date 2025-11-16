@@ -23,14 +23,14 @@ module "cloudsql" {
   instance_name    = var.cloudsql_instance_name
   region           = var.region
   database_version = "POSTGRES_16"
-  tier             = "db-custom-1-3840"
+  tier             = "db-f1-micro"
 
   ipv4_enabled    = true
   private_network = null
 
   backup_enabled                 = true
   backup_start_time              = "03:00"
-  point_in_time_recovery_enabled = true
+  point_in_time_recovery_enabled = false
   transaction_log_retention_days = 7
 
   maintenance_window_day          = 7

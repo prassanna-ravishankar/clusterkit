@@ -52,5 +52,5 @@ variable "k8s_namespace" {
 variable "k8s_service_account" {
   description = "Kubernetes service account for Workload Identity"
   type        = string
-  default     = "torale-api"
+  default     = "torale-sa"
 }
