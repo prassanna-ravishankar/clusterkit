@@ -57,11 +57,20 @@ module "cloudsql_proxy_sa" {
   k8s_service_account      = var.k8s_service_account
 }
 
-# Static IP for Ingress
+# Static IP for Ingress (Production)
 module "static_ip" {
   source = "../../modules/static-ip"
 
   project_id   = var.project_id
   address_name = var.static_ip_name
   description  = "Static IP for ClusterKit ingress LoadBalancer"
+}
+
+# Static IP for Ingress (Staging)
+module "static_ip_staging" {
+  source = "../../modules/static-ip"
+
+  project_id   = var.project_id
+  address_name = "torale-staging-ip"
+  description  = "Static IP for Torale staging ingress"
 }
