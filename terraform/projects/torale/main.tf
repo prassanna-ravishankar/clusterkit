@@ -64,6 +64,20 @@ resource "google_service_account_iam_member" "workload_identity_staging" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa]"
 }
 
+# Cloud SQL Proxy Service Account binding for Production Migrations
+resource "google_service_account_iam_member" "workload_identity_prod_migrations" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale/torale-sa-migrations]"
+}
+
+# Cloud SQL Proxy Service Account binding for Staging Migrations
+resource "google_service_account_iam_member" "workload_identity_staging_migrations" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa-migrations]"
+}
+
 # Static IP for Ingress (Production)
 module "static_ip" {
   source = "../../modules/static-ip"
