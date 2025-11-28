@@ -44,7 +44,7 @@ module "cloudsql" {
   users     = var.database_users
 }
 
-# Cloud SQL Proxy Service Account
+# Cloud SQL Proxy Service Account (Production)
 module "cloudsql_proxy_sa" {
   source = "../../modules/cloudsql-proxy-sa"
 
@@ -55,6 +55,13 @@ module "cloudsql_proxy_sa" {
   enable_workload_identity = var.enable_workload_identity
   k8s_namespace            = var.k8s_namespace
   k8s_service_account      = var.k8s_service_account
+}
+
+# Cloud SQL Proxy Service Account binding for Staging
+resource "google_service_account_iam_member" "workload_identity_staging" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa]"
 }
 
 # Static IP for Ingress (Production)
