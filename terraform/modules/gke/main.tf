@@ -30,10 +30,22 @@ resource "google_container_cluster" "primary" {
     project     = "clusterkit"
   }
 
+  # Logging configuration (optimized for cost)
+  logging_config {
+    enable_components = var.enable_workload_logging ? ["SYSTEM_COMPONENTS", "WORKLOADS"] : ["SYSTEM_COMPONENTS"]
+  }
+
+  # Monitoring configuration (optimized for cost)
+  monitoring_config {
+    enable_components = var.monitoring_components
+
+    # Note: Managed Prometheus cannot be disabled in Autopilot clusters (GKE 1.25+)
+    # It is automatically enabled and managed by Google
+  }
+
   # Note: The following are automatically configured in Autopilot mode:
   # - Shielded Nodes (enabled by default)
   # - Workload Identity (auto-configured)
-  # - Logging and Monitoring (SYSTEM_COMPONENTS enabled)
   # - Binary Authorization (configurable via GCP console if needed)
   # - Node auto-provisioning, scaling, and repair
   # - Security patches and upgrades

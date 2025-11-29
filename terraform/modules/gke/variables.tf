@@ -30,3 +30,15 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "enable_workload_logging" {
+  description = "Enable logging for workload containers (disable to save costs)"
+  type        = bool
+  default     = true
+}
+
+variable "monitoring_components" {
+  description = "List of GKE monitoring components to enable"
+  type        = list(string)
+  default     = ["SYSTEM_COMPONENTS", "POD", "DEPLOYMENT"]
+}
