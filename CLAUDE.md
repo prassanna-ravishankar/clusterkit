@@ -9,165 +9,61 @@ ClusterKit is a simplified Kubernetes platform for personal projects on GKE Auto
 **Key Technologies:**
 - GKE Autopilot (managed Kubernetes)
 - Terraform (infrastructure as code)
-- Go CLI (bootstrap orchestration)
-- Cloudflare (DNS via ExternalDNS)
-- GKE Managed Certificates (automatic TLS)
+- Gateway API (shared load balancer)
+- Google-managed SSL certificates
+- ExternalDNS (Cloudflare integration)
+
+**Target monthly cost:** ~£25-30 for infrastructure + multiple applications
 
 ## Architecture
 
-### Two-Tier Infrastructure Management
+### Gateway API Pattern
 
-**1. Root Terraform (`terraform/`)**
+ClusterKit uses **Gateway API** (successor to Ingress) for cost-effective multi-tenant routing:
+
+```
+Single Gateway (34.149.49.202)
+├── HTTPRoute (torale.ai) → Service (torale/torale-frontend)
+├── HTTPRoute (api.torale.ai) → Service (torale/torale-api)
+├── HTTPRoute (docs.torale.ai) → Service (torale/torale-docs)
+├── HTTPRoute (staging.torale.ai) → Service (torale-staging/torale-frontend)  # cross-namespace
+└── HTTPRoute (api.staging.torale.ai) → Service (torale-staging/torale-api)
+```
+
+**Benefits:**
+- Single load balancer IP (saves £5/month per environment)
+- Cross-namespace routing (production + staging share Gateway)
+- Centralized SSL termination
+- ExternalDNS auto-creates DNS from HTTPRoute hostnames
+
+### Two-Tier Terraform Structure
+
+**1. Root Terraform** (`terraform/`):
 - GKE Autopilot cluster
-- Networking (static IPs)
+- Gateway API (Gateway, SSL certificates, ReferenceGrants)
+- Static IP (`clusterkit-ingress-ip`)
 - IAM (service accounts with Workload Identity)
-- Logging optimization module (project-level)
-- Gateway API (shared Gateway, SSL certificates, ReferenceGrants)
-- Used for: Cluster infrastructure, shared resources
+- Logging optimization (project-level)
 
-**2. Project-Specific Terraform (`terraform/projects/torale/`)**
+**2. Project-Specific Terraform** (`terraform/projects/torale/`):
 - Cloud SQL instances
-- Project-specific static IPs
 - Application-specific service accounts
-- Used for: Application infrastructure separate from cluster
+- Project resources separate from cluster
 
-Both use the same GCP project but maintain separate Terraform states.
+Both use the same GCP project (`baldmaninc`) but maintain separate Terraform states.
 
 ### Terraform Module Structure
 
 Reusable modules in `terraform/modules/`:
 - `gke/` - GKE Autopilot cluster with configurable logging/monitoring
-- `networking/` - Static IP addresses for load balancers
-- `iam/` - Service accounts with Workload Identity bindings
-- `logging/` - Cost-optimized Cloud Logging (retention, exclusions, sampling)
-- `cloudsql-instance/` - PostgreSQL instances
-- `cloudsql-proxy-sa/` - Service accounts for Cloud SQL Proxy
-- `static-ip/` - Global static IP addresses
-- `cloudflare/` - Cloudflare DNS configuration (if needed)
-- `gateway-api/` - GKE Gateway with SSL certificates and ReferenceGrants
-- `httproute/` - HTTPRoute for Gateway API routing (application use)
+- `gateway-api/` - Gateway with SSL certs and ReferenceGrants
 - `ssl-certificate/` - Google-managed SSL certificates
-
-**Module Usage Pattern:**
-```hcl
-module "logging" {
-  source = "./modules/logging"
-
-  project_id            = var.project_id
-  retention_days        = 7
-  exclude_health_checks = true
-  info_log_sample_rate  = 0.1
-}
-```
-
-### Go CLI Architecture
-
-**Bootstrap Orchestrator Pattern:**
-- `pkg/bootstrap/orchestrator.go` - Main orchestration engine
-- `pkg/bootstrap/components/` - Component installers (Terraform, Helm)
-- `pkg/bootstrap/validation.go` - End-to-end validation
-- `pkg/preflight/` - Pre-flight checks (GCP, Cloudflare)
-
-**Execution Flow:**
-1. Pre-flight validation (credentials, quotas)
-2. Terraform deployment (infrastructure)
-3. Component installation (ExternalDNS via Helm)
-4. Health checks (cluster, components)
-5. End-to-end validation
-
-**Retry Logic:**
-- Each step retries up to 3 times with exponential backoff
-- Health checks run after successful execution
-- Rollback capability for failed deployments
-
-## Development Commands
-
-### Terraform
-
-```bash
-# Root infrastructure (cluster, networking, logging)
-cd terraform
-terraform init
-terraform plan -var="project_id=YOUR_PROJECT"
-terraform apply -var="project_id=YOUR_PROJECT"
-
-# Project-specific (Cloud SQL, app resources)
-cd terraform/projects/torale
-terraform init
-terraform plan  # Uses project_id from variables.tf default
-terraform apply
-```
-
-**Important:**
-- Logging module is only in root terraform (project-level config)
-- GKE cluster monitoring config is in root terraform
-- Application resources go in project-specific terraform
-
-### Go CLI
-
-```bash
-cd cli
-
-# Build
-make build
-
-# Run tests
-make test
-go test ./... -v
-
-# Format code
-make fmt
-
-# Install locally
-make install
-
-# Run directly
-make run
-
-# Build for release
-make release  # Creates dist/ with multi-platform binaries
-```
-
-### Kubernetes Operations
-
-```bash
-# Connect to cluster
-gcloud container clusters get-credentials clusterkit --region us-central1 --project PROJECT_ID
-
-# Check components
-kubectl get pods --all-namespaces
-kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
-
-# Check TLS certificates
-kubectl get managedcertificates
-kubectl describe managedcertificate CERT_NAME
-
-# Check DNS
-kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
-```
-
-## Cost Optimization Strategy
-
-This project implements aggressive cost optimization for side projects:
-
-**Logging Optimizations** (`terraform/modules/logging/`):
-- Log retention: 7 days (down from 30)
-- Health check exclusion (~24% of logs)
-- GKE noise exclusion (gcfs-snapshotter, gcfsd, container-runtime)
-- INFO log sampling at 10% (ERROR/WARNING kept at 100%)
-
-**GKE Monitoring Optimizations** (`terraform/modules/gke/`):
-- Monitoring components reduced to essential: SYSTEM_COMPONENTS, POD, DEPLOYMENT
-- Managed Prometheus: Cannot be disabled in Autopilot (GKE 1.25+, enforced by Google)
-- Workload logging: Configurable (kept enabled for debugging)
-
-**Target Costs:**
-- Cloud Monitoring: ~£3-5/month (down from £14/month)
-- Infrastructure: ~£25-30/month total for side projects
-
-**Spot Pods:**
-- 60-91% cost savings for fault-tolerant workloads
-- Add nodeSelector in manifests: `cloud.google.com/gke-spot: "true"`
+- `httproute/` - HTTPRoute template (for application use)
+- `networking/` - Static IP addresses
+- `iam/` - Service accounts with Workload Identity
+- `logging/` - Cost-optimized Cloud Logging
+- `cloudsql-instance/`, `cloudsql-proxy-sa/` - PostgreSQL instances
+- `static-ip/` - Global static IP addresses
 
 ## Key Patterns and Conventions
 
@@ -178,32 +74,80 @@ This project implements aggressive cost optimization for side projects:
 3. **Deletion Protection:** Enabled by default on critical resources
 4. **Workload Identity:** Preferred over service account keys
 5. **Lock Files:** Always commit `.terraform.lock.hcl`
+6. **Provider Configuration:**
+   - Kubernetes provider configured in root `versions.tf`
+   - Uses GKE cluster credentials via `google_client_config`
 
-### Go Code Patterns
+### Gateway API Conventions
 
-1. **Component Interface:** All bootstrap components implement Install/HealthCheck/Uninstall
-2. **Structured Logging:** Use logrus with structured fields
-3. **Error Wrapping:** Always wrap errors with context (`fmt.Errorf("context: %w", err)`)
-4. **Dry-Run Support:** All components support dry-run mode
-5. **Progress Callbacks:** Orchestrator supports progress reporting via callbacks
-
-### Kubernetes Manifest Pattern
-
-**Gateway API (Current):**
-Standard app deployment requires 3 resources:
-1. Deployment (with Spot Pod nodeSelector for cost savings)
-2. Service (ClusterIP exposing pod ports)
-3. HTTPRoute (routing rules, attaches to shared Gateway)
-
-Gateway, SSL certificates, and ReferenceGrants are managed by ClusterKit Terraform.
-
-**Key HTTPRoute Requirements:**
-- Must be in `torale` namespace (same as Gateway)
-- Must add annotation: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
+**HTTPRoute Requirements:**
+- MUST be in `torale` namespace (Gateway namespace)
+- MUST include annotation: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
 - Cross-namespace service refs: Add `namespace: torale-staging` to backendRefs
 - ExternalDNS auto-creates DNS from `hostnames` field
 
-See `docs/torale-repo-integration.md` for detailed examples.
+**Example HTTPRoute:**
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app-prod
+  namespace: torale
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  parentRefs:
+  - name: clusterkit-gateway
+    namespace: torale
+  hostnames:
+  - "app.domain.com"
+  rules:
+  - backendRefs:
+    - name: app-service
+      port: 80
+```
+
+### Kubernetes Manifest Pattern
+
+Standard app deployment requires 3 resources:
+1. **Deployment** (with Spot Pod nodeSelector for cost savings)
+2. **Service** (ClusterIP exposing pod ports)
+3. **HTTPRoute** (routing rules, attaches to shared Gateway)
+
+Gateway, SSL certificates, and ReferenceGrants are managed by ClusterKit Terraform.
+
+**Spot Pod Configuration (60-91% savings):**
+```yaml
+nodeSelector:
+  cloud.google.com/gke-spot: "true"
+tolerations:
+- effect: NoSchedule
+  key: cloud.google.com/gke-spot
+  operator: Equal
+  value: "true"
+```
+
+## Cost Optimization Strategy
+
+**Logging Optimizations** (`terraform/modules/logging/`):
+- Log retention: 7 days (down from 30)
+- Health check exclusion (~24% of logs)
+- GKE noise exclusion (gcfs-snapshotter, gcfsd, container-runtime)
+- INFO log sampling at 10% (ERROR/WARNING kept at 100%)
+
+**GKE Monitoring Optimizations** (`terraform/modules/gke/`):
+- Monitoring components: `SYSTEM_COMPONENTS`, `POD`, `DEPLOYMENT` only
+- Managed Prometheus: Cannot be disabled (GKE 1.25+, enforced by Google)
+- Workload logging: Enabled (kept for debugging)
+
+**Gateway API Cost Savings:**
+- Single IP for all apps: £5/month (vs £10 for 2 IPs)
+- Shared load balancer: No per-app LB costs
+- Cross-namespace routing: Production + staging share Gateway
+
+**Target Costs:**
+- Cloud Monitoring: ~£3-5/month (down from £14/month)
+- Infrastructure: ~£25-30/month total for side projects
 
 ## Important Caveats
 
@@ -212,83 +156,120 @@ See `docs/torale-repo-integration.md` for detailed examples.
 - **Managed Prometheus:** Cannot be disabled (enforced in GKE 1.25+)
 - **Node Management:** Fully automated, no node pool configuration
 - **Resource Limits:** Automatic resource provisioning based on pod requests
-- **Monitoring Components:** Some components cannot be fully disabled
-
-### Multi-Project Setup
-
-- Same GCP project (`baldmaninc`) used for both cluster and applications
-- Separate Terraform states (root vs projects/torale)
-- Logging config is project-level (only configure once in root terraform)
-- Static IPs can be created in either location
 
 ### Gateway API Integration
 
-- Uses single shared Gateway (`clusterkit-gateway`) for all apps
-- Gateway in `torale` namespace, shared IP: `clusterkit-ingress-ip` (34.149.49.202)
+- Uses single shared Gateway (`clusterkit-gateway`) in `torale` namespace
+- Gateway IP: `clusterkit-ingress-ip` (34.149.49.202)
 - HTTPRoutes attach to Gateway for routing rules
 - Cross-namespace routing via ReferenceGrants (HTTPRoutes in `torale` → services in `torale-staging`)
 - ExternalDNS watches HTTPRoutes and auto-creates DNS records
-- **Important**: HTTPRoute annotation `cloudflare-proxied: false` required for GCP SSL to work
+- **Critical**: HTTPRoute annotation `cloudflare-proxied: false` required for GCP SSL to work
+
+### SSL Certificate Limitations
+
+Google-managed certificates:
+- ✅ Up to 100 non-wildcard domains per certificate
+- ❌ No wildcard domain support (`*.torale.ai` not supported)
+- ❌ Updates not supported (must recreate for new domains)
+- ✅ Automatic renewal before expiration
+- Adding domain = cert recreation (~15 min with brief downtime)
 
 ### Cloudflare Integration
 
 - ExternalDNS automatically creates/updates DNS records from HTTPRoute hostnames
 - Requires Cloudflare API token with DNS edit permissions
-- One token can manage multiple domains (configure zone resources)
-- DNS records must be "DNS only" (gray cloud), not "Proxied" (orange cloud)
+- DNS records MUST be "DNS only" (gray cloud), not "Proxied" (orange cloud)
+- Orange cloud = Cloudflare terminates SSL → breaks GCP-managed certificates
 - All domains point to shared Gateway IP (34.149.49.202)
+
+## Development Commands
+
+### Terraform
+
+```bash
+# Root infrastructure (cluster, Gateway, logging)
+cd terraform
+terraform init
+terraform plan -var="project_id=baldmaninc"
+terraform apply -var="project_id=baldmaninc"
+
+# Project-specific (Cloud SQL, app resources)
+cd terraform/projects/torale
+terraform init
+terraform plan
+terraform apply
+```
+
+### Kubernetes Operations
+
+```bash
+# Connect to cluster
+gcloud container clusters get-credentials clusterkit --region us-central1 --project baldmaninc
+
+# Check Gateway
+kubectl get gateway clusterkit-gateway -n torale
+kubectl describe gateway clusterkit-gateway -n torale
+
+# Check HTTPRoutes
+kubectl get httproute -n torale
+kubectl describe httproute <name> -n torale
+
+# Check SSL certificates
+gcloud compute ssl-certificates list
+gcloud compute ssl-certificates describe torale-prod-cert
+
+# Check ExternalDNS
+kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
+
+# Verify DNS
+dig +short domain.com @1.1.1.1
+```
 
 ## Common Workflows
 
-### Adding New Terraform Module
+### Adding New Subdomain
 
-1. Create `terraform/modules/MODULE_NAME/`
-2. Add `main.tf`, `variables.tf`, `outputs.tf`
-3. Use in root or project-specific terraform
-4. Document module purpose and variables
+See `docs/maintenance.md#adding-domains` for detailed instructions.
+
+**Quick steps:**
+1. Add domain to SSL cert in `terraform/main.tf`
+2. Apply Terraform (15 min for cert provisioning)
+3. Application team creates HTTPRoute
+4. DNS auto-created by ExternalDNS
 
 ### Deploying New Application
 
-1. **Add domain to SSL certificate** (if new subdomain):
-   - Edit `terraform/main.tf` SSL cert module
-   - Add domain to `domains` list
-   - Run `terraform apply -var="project_id=baldmaninc"`
-   - Wait 15 min for cert provisioning (cert recreation)
+See `docs/app-integration.md` for application developer guide.
 
-2. **Create application manifests**:
-   - Deployment (with Spot Pod nodeSelector for cost savings)
-   - Service (ClusterIP)
-   - HTTPRoute (with `cloudflare-proxied: false` annotation)
+**Infrastructure team:**
+1. Add subdomain to SSL certificate (if new)
+2. Ensure ReferenceGrant exists (if cross-namespace)
 
-3. **Apply manifests**:
-   ```bash
-   kubectl apply -f deployment.yaml
-   kubectl apply -f service.yaml
-   kubectl apply -f httproute.yaml
-   ```
+**Application team:**
+1. Create Deployment, Service, HTTPRoute manifests
+2. Deploy to cluster
+3. Verify HTTPRoute attached and DNS created
 
-4. **Verify**:
-   - Check HTTPRoute attached: `kubectl describe httproute <name> -n torale`
-   - Check ExternalDNS logs for DNS creation
-   - Verify Cloudflare DNS is gray cloud (DNS-only)
-   - Test URL with HTTPS
+### Troubleshooting Deployments
 
-### Optimizing Costs
+See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 
-1. **Logging:** Adjust `terraform/modules/logging/` variables
-2. **Monitoring:** Modify `monitoring_components` in GKE module
-3. **Resources:** Right-size pod requests in manifests
-4. **Spot Pods:** Add to all fault-tolerant workloads
+**Quick checks:**
+1. Gateway status: `kubectl get gateway clusterkit-gateway -n torale` (should show PROGRAMMED: True)
+2. HTTPRoute status: `kubectl describe httproute <name> -n torale` (should show Accepted: True)
+3. SSL cert status: `gcloud compute ssl-certificates describe <cert-name>`
+4. DNS resolution: `dig +short domain.com @1.1.1.1` (should return 34.149.49.202)
+5. ExternalDNS logs: `kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns`
+6. Cloudflare DNS mode: Should be gray cloud (DNS-only), not orange (proxied)
 
-### Debugging Deployments
+## Documentation Structure
 
-1. Check pod status: `kubectl get pods`
-2. Check events: `kubectl get events --sort-by='.lastTimestamp'`
-3. Check Gateway: `kubectl describe gateway clusterkit-gateway -n torale`
-4. Check HTTPRoute: `kubectl describe httproute <name> -n torale`
-5. Check SSL certs: `gcloud compute ssl-certificates list`
-6. Check DNS: `kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns`
-7. Verify Cloudflare DNS mode: Should be gray cloud (DNS-only), not orange (proxied)
+- **README.md** - Project overview, quick start, architecture
+- **CLAUDE.md** (this file) - AI assistant context
+- **docs/app-integration.md** - 1-page guide for application developers
+- **docs/maintenance.md** - Comprehensive operator guide
+- **docs/external-dns-values.yaml** - Helm values for ExternalDNS
 
 ## Project-Specific Notes
 
@@ -297,8 +278,24 @@ See `docs/torale-repo-integration.md` for detailed examples.
 - **Cluster:** GKE Autopilot in us-central1
 - **Project:** baldmaninc
 - **Domains:** Managed via Cloudflare
-- **Production:** Shares cluster with staging (separate namespaces)
+- **Gateway:** clusterkit-gateway (namespace: torale, IP: 34.149.49.202)
+- **HTTPRoutes:** 5 routes (3 prod, 2 staging) all in `torale` namespace
+- **Production:** Shares cluster with staging (separate namespaces: `torale`, `torale-staging`)
 - **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled)
-- **Gateway API:** Shared Gateway in `torale` namespace (34.149.49.202)
-- **Current HTTPRoutes:** 5 routes (3 prod, 2 staging) all in `torale` namespace
-- **Cost Savings:** £5/month saved by using single IP instead of 2
+- **Cost Savings:** £5/month saved by using single Gateway IP instead of 2 separate IPs
+
+### Critical Operations
+
+**Adding domain to SSL certificate:**
+- Edit `terraform/main.tf` SSL cert module
+- Add domain to `domains` list
+- `terraform apply` (recreates cert, ~15 min downtime)
+
+**Updating ExternalDNS:**
+- Configuration in `docs/external-dns-values.yaml`
+- Deploy: `helm upgrade external-dns external-dns/external-dns -n external-dns -f docs/external-dns-values.yaml`
+
+**Gateway troubleshooting:**
+- If PROGRAMMED: False, check SSL certs and static IP
+- Force reconciliation: `kubectl annotate gateway clusterkit-gateway -n torale reconcile="$(date +%s)" --overwrite`
+- Check events: `kubectl describe gateway clusterkit-gateway -n torale`
