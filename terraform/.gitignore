@@ -25,6 +25,7 @@ terraform.rc
 
 # Ignore plan files
 *.tfplan
+tfplan
 
 # Ignore service account keys
 *.json
