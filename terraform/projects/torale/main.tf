@@ -87,11 +87,5 @@ module "static_ip" {
   description  = "Static IP for ClusterKit ingress LoadBalancer"
 }
 
-# Static IP for Ingress (Staging)
-module "static_ip_staging" {
-  source = "../../modules/static-ip"
-
-  project_id   = var.project_id
-  address_name = "torale-staging-ip"
-  description  = "Static IP for Torale staging ingress"
-}
+# Static IP for Ingress (Staging) - Removed to share prod IP and save £5/month
+# Staging now uses clusterkit-ingress-ip (GKE routes by hostname)

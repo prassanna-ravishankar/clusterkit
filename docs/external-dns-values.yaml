@@ -1,0 +1,76 @@
+# ExternalDNS Helm Values for Gateway API Support
+#
+# Install/upgrade with:
+# helm upgrade --install external-dns external-dns/external-dns \
+#   --namespace external-dns --create-namespace \
+#   -f docs/external-dns-values.yaml
+
+# Sources to watch for DNS records
+sources:
+  - service
+  - ingress
+  - gateway-httproute  # Gateway API support
+
+# Cloudflare provider configuration
+provider: cloudflare
+
+# DNS record update policy (upsert-only = create/update, never delete)
+policy: upsert-only
+
+# TXT registry for ownership tracking
+registry: txt
+txtOwnerId: clusterkit
+
+# Cloudflare-specific settings
+cloudflare:
+  proxied: true  # Default to orange cloud (can override per-HTTPRoute with annotation)
+  apiToken: ""   # Set via secret
+  dnsRecordsPerPage: 100
+
+# Sync interval
+interval: 1m
+
+# Logging
+logLevel: info
+logFormat: text
+
+# Metrics
+metrics:
+  enabled: true
+  port: 7979
+
+# Resources (GKE Autopilot will adjust these)
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# Spot nodes for cost savings
+nodeSelector:
+  cloud.google.com/gke-spot: "true"
+
+tolerations:
+  - effect: NoSchedule
+    key: cloud.google.com/gke-spot
+    operator: Equal
+    value: "true"
+  - effect: NoSchedule
+    key: kubernetes.io/arch
+    operator: Equal
+    value: amd64
+
+# RBAC - ClusterRole must include Gateway API permissions
+rbac:
+  create: true
+  additionalPermissions:
+    - apiGroups: ["gateway.networking.k8s.io"]
+      resources: ["gateways", "httproutes"]
+      verbs: ["get", "list", "watch"]
+
+# Service account
+serviceAccount:
+  create: true
+  name: external-dns

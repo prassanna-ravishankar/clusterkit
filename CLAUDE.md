@@ -22,6 +22,7 @@ ClusterKit is a simplified Kubernetes platform for personal projects on GKE Auto
 - Networking (static IPs)
 - IAM (service accounts with Workload Identity)
 - Logging optimization module (project-level)
+- Gateway API (shared Gateway, SSL certificates, ReferenceGrants)
 - Used for: Cluster infrastructure, shared resources
 
 **2. Project-Specific Terraform (`terraform/projects/torale/`)**
@@ -43,6 +44,9 @@ Reusable modules in `terraform/modules/`:
 - `cloudsql-proxy-sa/` - Service accounts for Cloud SQL Proxy
 - `static-ip/` - Global static IP addresses
 - `cloudflare/` - Cloudflare DNS configuration (if needed)
+- `gateway-api/` - GKE Gateway with SSL certificates and ReferenceGrants
+- `httproute/` - HTTPRoute for Gateway API routing (application use)
+- `ssl-certificate/` - Google-managed SSL certificates
 
 **Module Usage Pattern:**
 ```hcl
@@ -185,13 +189,21 @@ This project implements aggressive cost optimization for side projects:
 
 ### Kubernetes Manifest Pattern
 
-Standard app deployment requires 4 resources:
+**Gateway API (Current):**
+Standard app deployment requires 3 resources:
 1. Deployment (with Spot Pod nodeSelector for cost savings)
 2. Service (ClusterIP exposing pod ports)
-3. ManagedCertificate (GKE-managed TLS, one per domain)
-4. Ingress (with GKE annotations, ExternalDNS hostname)
+3. HTTPRoute (routing rules, attaches to shared Gateway)
 
-See `examples/manifests/` for templates.
+Gateway, SSL certificates, and ReferenceGrants are managed by ClusterKit Terraform.
+
+**Key HTTPRoute Requirements:**
+- Must be in `torale` namespace (same as Gateway)
+- Must add annotation: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
+- Cross-namespace service refs: Add `namespace: torale-staging` to backendRefs
+- ExternalDNS auto-creates DNS from `hostnames` field
+
+See `docs/torale-repo-integration.md` for detailed examples.
 
 ## Important Caveats
 
@@ -209,12 +221,22 @@ See `examples/manifests/` for templates.
 - Logging config is project-level (only configure once in root terraform)
 - Static IPs can be created in either location
 
+### Gateway API Integration
+
+- Uses single shared Gateway (`clusterkit-gateway`) for all apps
+- Gateway in `torale` namespace, shared IP: `clusterkit-ingress-ip` (34.149.49.202)
+- HTTPRoutes attach to Gateway for routing rules
+- Cross-namespace routing via ReferenceGrants (HTTPRoutes in `torale` → services in `torale-staging`)
+- ExternalDNS watches HTTPRoutes and auto-creates DNS records
+- **Important**: HTTPRoute annotation `cloudflare-proxied: false` required for GCP SSL to work
+
 ### Cloudflare Integration
 
-- ExternalDNS automatically creates/updates DNS records
+- ExternalDNS automatically creates/updates DNS records from HTTPRoute hostnames
 - Requires Cloudflare API token with DNS edit permissions
 - One token can manage multiple domains (configure zone resources)
-- DNS records point to GKE Ingress LoadBalancer IP (shared across apps)
+- DNS records must be "DNS only" (gray cloud), not "Proxied" (orange cloud)
+- All domains point to shared Gateway IP (34.149.49.202)
 
 ## Common Workflows
 
@@ -227,10 +249,29 @@ See `examples/manifests/` for templates.
 
 ### Deploying New Application
 
-1. Create manifests (Deployment, Service, ManagedCertificate, Ingress)
-2. Add Spot Pod nodeSelector for cost savings
-3. Apply: `kubectl apply -f app.yaml`
-4. Verify: Check Ingress, ManagedCertificate, and ExternalDNS logs
+1. **Add domain to SSL certificate** (if new subdomain):
+   - Edit `terraform/main.tf` SSL cert module
+   - Add domain to `domains` list
+   - Run `terraform apply -var="project_id=baldmaninc"`
+   - Wait 15 min for cert provisioning (cert recreation)
+
+2. **Create application manifests**:
+   - Deployment (with Spot Pod nodeSelector for cost savings)
+   - Service (ClusterIP)
+   - HTTPRoute (with `cloudflare-proxied: false` annotation)
+
+3. **Apply manifests**:
+   ```bash
+   kubectl apply -f deployment.yaml
+   kubectl apply -f service.yaml
+   kubectl apply -f httproute.yaml
+   ```
+
+4. **Verify**:
+   - Check HTTPRoute attached: `kubectl describe httproute <name> -n torale`
+   - Check ExternalDNS logs for DNS creation
+   - Verify Cloudflare DNS is gray cloud (DNS-only)
+   - Test URL with HTTPS
 
 ### Optimizing Costs
 
@@ -243,9 +284,11 @@ See `examples/manifests/` for templates.
 
 1. Check pod status: `kubectl get pods`
 2. Check events: `kubectl get events --sort-by='.lastTimestamp'`
-3. Check Ingress: `kubectl describe ingress APP_NAME`
-4. Check cert: `kubectl describe managedcertificate CERT_NAME`
-5. Check DNS: `kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns`
+3. Check Gateway: `kubectl describe gateway clusterkit-gateway -n torale`
+4. Check HTTPRoute: `kubectl describe httproute <name> -n torale`
+5. Check SSL certs: `gcloud compute ssl-certificates list`
+6. Check DNS: `kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns`
+7. Verify Cloudflare DNS mode: Should be gray cloud (DNS-only), not orange (proxied)
 
 ## Project-Specific Notes
 
@@ -256,3 +299,6 @@ See `examples/manifests/` for templates.
 - **Domains:** Managed via Cloudflare
 - **Production:** Shares cluster with staging (separate namespaces)
 - **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled)
+- **Gateway API:** Shared Gateway in `torale` namespace (34.149.49.202)
+- **Current HTTPRoutes:** 5 routes (3 prod, 2 staging) all in `torale` namespace
+- **Cost Savings:** £5/month saved by using single IP instead of 2

@@ -63,3 +63,48 @@ module "logging" {
   info_log_sample_rate   = 0.1 # Keep only 10% of INFO logs
   health_check_patterns  = ["/health", "/healthz", "/ready", "GET /health"]
 }
+
+# SSL Certificates for Gateway (Google-managed)
+module "ssl_cert_torale_prod" {
+  source = "./modules/ssl-certificate"
+
+  project_id       = var.project_id
+  certificate_name = "torale-prod-cert"
+  domains          = ["torale.ai", "api.torale.ai", "docs.torale.ai"]
+
+  depends_on = [google_project_service.required_apis]
+}
+
+module "ssl_cert_torale_staging" {
+  source = "./modules/ssl-certificate"
+
+  project_id       = var.project_id
+  certificate_name = "torale-staging-cert"
+  domains          = ["staging.torale.ai", "api.staging.torale.ai"]
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Gateway API - Shared Gateway for all applications
+module "gateway" {
+  source = "./modules/gateway-api"
+
+  gateway_name      = "clusterkit-gateway"
+  gateway_namespace = "torale"
+  static_ip_name    = var.static_ip_name
+
+  ssl_certificate_names = [
+    module.ssl_cert_torale_prod.certificate_name,
+    module.ssl_cert_torale_staging.certificate_name,
+  ]
+
+  # Allow HTTPRoutes in torale namespace to reference services in torale-staging
+  allowed_route_namespaces = ["torale-staging"]
+
+  depends_on = [
+    module.gke,
+    module.networking,
+    module.ssl_cert_torale_prod,
+    module.ssl_cert_torale_staging,
+  ]
+}
