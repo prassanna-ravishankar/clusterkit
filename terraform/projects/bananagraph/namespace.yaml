@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bananagraph
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bananagraph-sa
+  namespace: bananagraph
+  annotations:
+    iam.gke.io/gcp-service-account: bananagraph-sa@baldmaninc.iam.gserviceaccount.com

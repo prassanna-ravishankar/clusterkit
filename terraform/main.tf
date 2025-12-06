@@ -85,6 +85,16 @@ module "ssl_cert_torale_staging" {
   depends_on = [google_project_service.required_apis]
 }
 
+module "ssl_cert_bananagraph_prod" {
+  source = "./modules/ssl-certificate"
+
+  project_id       = var.project_id
+  certificate_name = "bananagraph-prod-cert"
+  domains          = ["bananagraph.com", "api.bananagraph.com"]
+
+  depends_on = [google_project_service.required_apis]
+}
+
 # Gateway API - Shared Gateway for all applications
 module "gateway" {
   source = "./modules/gateway-api"
@@ -96,15 +106,17 @@ module "gateway" {
   ssl_certificate_names = [
     module.ssl_cert_torale_prod.certificate_name,
     module.ssl_cert_torale_staging.certificate_name,
+    module.ssl_cert_bananagraph_prod.certificate_name,
   ]
 
-  # Allow HTTPRoutes in torale namespace to reference services in torale-staging
-  allowed_route_namespaces = ["torale-staging"]
+  # Allow HTTPRoutes in torale namespace to reference services in torale-staging and bananagraph
+  allowed_route_namespaces = ["torale-staging", "bananagraph"]
 
   depends_on = [
     module.gke,
     module.networking,
     module.ssl_cert_torale_prod,
     module.ssl_cert_torale_staging,
+    module.ssl_cert_bananagraph_prod,
   ]
 }
