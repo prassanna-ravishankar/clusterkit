@@ -90,7 +90,7 @@ module "ssl_cert_bananagraph_prod" {
 
   project_id       = var.project_id
   certificate_name = "bananagraph-prod-cert"
-  domains          = ["bananagraph.com", "api.bananagraph.com"]
+  domains          = ["bananagraph.com", "www.bananagraph.com", "api.bananagraph.com"]
 
   depends_on = [google_project_service.required_apis]
 }
