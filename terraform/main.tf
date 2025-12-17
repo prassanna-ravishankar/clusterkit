@@ -95,6 +95,16 @@ module "ssl_cert_bananagraph_prod" {
   depends_on = [google_project_service.required_apis]
 }
 
+module "ssl_cert_a2aregistry_beta" {
+  source = "./modules/ssl-certificate"
+
+  project_id       = var.project_id
+  certificate_name = "a2aregistry-beta-cert"
+  domains          = ["beta.a2aregistry.org"]
+
+  depends_on = [google_project_service.required_apis]
+}
+
 # Gateway API - Shared Gateway for all applications
 module "gateway" {
   source = "./modules/gateway-api"
@@ -107,10 +117,11 @@ module "gateway" {
     module.ssl_cert_torale_prod.certificate_name,
     module.ssl_cert_torale_staging.certificate_name,
     module.ssl_cert_bananagraph_prod.certificate_name,
+    module.ssl_cert_a2aregistry_beta.certificate_name,
   ]
 
-  # Allow HTTPRoutes in torale namespace to reference services in torale-staging and bananagraph
-  allowed_route_namespaces = ["torale-staging", "bananagraph"]
+  # Allow HTTPRoutes in torale namespace to reference services in torale-staging, bananagraph, and a2aregistry
+  allowed_route_namespaces = ["torale-staging", "bananagraph", "a2aregistry"]
 
   depends_on = [
     module.gke,
@@ -118,5 +129,6 @@ module "gateway" {
     module.ssl_cert_torale_prod,
     module.ssl_cert_torale_staging,
     module.ssl_cert_bananagraph_prod,
+    module.ssl_cert_a2aregistry_beta,
   ]
 }

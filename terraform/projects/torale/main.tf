@@ -78,6 +78,13 @@ resource "google_service_account_iam_member" "workload_identity_staging_migratio
   member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa-migrations]"
 }
 
+# Cloud SQL Proxy Service Account binding for A2A Registry
+resource "google_service_account_iam_member" "workload_identity_a2aregistry" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[a2aregistry/a2aregistry-sa]"
+}
+
 # Static IP for Ingress (Production)
 module "static_ip" {
   source = "../../modules/static-ip"
