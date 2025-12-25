@@ -23,12 +23,13 @@ ClusterKit uses two separate Terraform states:
 - GKE Autopilot cluster
 - Shared Gateway and SSL certificates
 - Static IPs
+- Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
 - IAM (service accounts)
 - Logging configuration
 
-**Project Terraform** (`terraform/projects/torale/`):
-- Cloud SQL databases
-- Project-specific resources
+**Project Terraform** (`terraform/projects/<project>/`):
+- Project-specific databases and users (created in shared instance)
+- Project-specific GCS buckets and service accounts
 
 ### Applying Infrastructure Changes
 
