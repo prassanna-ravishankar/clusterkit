@@ -74,3 +74,24 @@ variable "create_service_account_keys" {
   type        = bool
   default     = false
 }
+
+# Cloud SQL Variables
+variable "cloudsql_instance_name" {
+  description = "Name of the shared Cloud SQL instance"
+  type        = string
+  default     = "clusterkit-db"
+}
+
+variable "cloudsql_databases" {
+  description = "List of databases to create in the shared instance"
+  type        = list(string)
+  default     = []
+}
+
+variable "cloudsql_users" {
+  description = "Database users and passwords for the shared instance"
+  type = map(object({
+    password = string
+  }))
+  default = {}
+}

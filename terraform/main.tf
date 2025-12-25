@@ -132,3 +132,72 @@ module "gateway" {
     module.ssl_cert_a2aregistry_beta,
   ]
 }
+
+# Shared Cloud SQL Instance
+module "cloudsql" {
+  source = "./modules/cloudsql-instance"
+
+  project_id       = var.project_id
+  instance_name    = var.cloudsql_instance_name
+  region           = var.region
+  database_version = "POSTGRES_16"
+  tier             = "db-f1-micro"
+
+  ipv4_enabled    = true
+  private_network = null
+
+  backup_enabled                 = true
+  backup_start_time              = "03:00"
+  point_in_time_recovery_enabled = false
+  transaction_log_retention_days = 7
+
+  maintenance_window_day          = 7
+  maintenance_window_hour         = 3
+  maintenance_window_update_track = "stable"
+
+  max_connections     = "100"
+  deletion_protection = true
+
+  databases = var.cloudsql_databases
+  users     = var.cloudsql_users
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Shared Cloud SQL Proxy Service Account
+module "cloudsql_proxy_sa" {
+  source = "./modules/cloudsql-proxy-sa"
+
+  project_id         = var.project_id
+  service_account_id = "cloudsql-proxy"
+  display_name       = "Cloud SQL Proxy for GKE"
+
+  enable_workload_identity = true
+  k8s_namespace            = "torale"
+  k8s_service_account      = "torale-sa"
+}
+
+# Workload Identity bindings for other namespaces
+resource "google_service_account_iam_member" "workload_identity_torale_staging" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa]"
+}
+
+resource "google_service_account_iam_member" "workload_identity_torale_migrations" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale/torale-sa-migrations]"
+}
+
+resource "google_service_account_iam_member" "workload_identity_torale_staging_migrations" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa-migrations]"
+}
+
+resource "google_service_account_iam_member" "workload_identity_a2aregistry" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[a2aregistry/a2aregistry-sa]"
+}

@@ -9,90 +9,32 @@ terraform {
   }
 }
 
-# Reuse the root provider configuration
 provider "google" {
   project = var.project_id
   region  = var.region
 }
 
-# Cloud SQL Instance
-module "cloudsql" {
-  source = "../../modules/cloudsql-instance"
-
-  project_id       = var.project_id
-  instance_name    = var.cloudsql_instance_name
-  region           = var.region
-  database_version = "POSTGRES_16"
-  tier             = "db-f1-micro"
-
-  ipv4_enabled    = true
-  private_network = null
-
-  backup_enabled                 = true
-  backup_start_time              = "03:00"
-  point_in_time_recovery_enabled = false
-  transaction_log_retention_days = 7
-
-  maintenance_window_day          = 7
-  maintenance_window_hour         = 3
-  maintenance_window_update_track = "stable"
-
-  max_connections     = "100"
-  deletion_protection = true
-
-  databases = var.databases
-  users     = var.database_users
+# Reference shared CloudSQL instance (managed by root terraform)
+data "google_sql_database_instance" "clusterkit_db" {
+  name    = var.cloudsql_instance_name
+  project = var.project_id
 }
 
-# Cloud SQL Proxy Service Account (Production)
-module "cloudsql_proxy_sa" {
-  source = "../../modules/cloudsql-proxy-sa"
+# Create torale-specific databases
+resource "google_sql_database" "databases" {
+  for_each = toset(var.databases)
 
-  project_id         = var.project_id
-  service_account_id = "cloudsql-proxy"
-  display_name       = "Cloud SQL Proxy for GKE"
-
-  enable_workload_identity = var.enable_workload_identity
-  k8s_namespace            = var.k8s_namespace
-  k8s_service_account      = var.k8s_service_account
+  name     = each.value
+  instance = data.google_sql_database_instance.clusterkit_db.name
+  project  = var.project_id
 }
 
-# Cloud SQL Proxy Service Account binding for Staging
-resource "google_service_account_iam_member" "workload_identity_staging" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa]"
+# Create torale-specific database users
+resource "google_sql_user" "users" {
+  for_each = var.database_users
+
+  name     = each.key
+  instance = data.google_sql_database_instance.clusterkit_db.name
+  project  = var.project_id
+  password = each.value.password
 }
-
-# Cloud SQL Proxy Service Account binding for Production Migrations
-resource "google_service_account_iam_member" "workload_identity_prod_migrations" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale/torale-sa-migrations]"
-}
-
-# Cloud SQL Proxy Service Account binding for Staging Migrations
-resource "google_service_account_iam_member" "workload_identity_staging_migrations" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa-migrations]"
-}
-
-# Cloud SQL Proxy Service Account binding for A2A Registry
-resource "google_service_account_iam_member" "workload_identity_a2aregistry" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[a2aregistry/a2aregistry-sa]"
-}
-
-# Static IP for Ingress (Production)
-module "static_ip" {
-  source = "../../modules/static-ip"
-
-  project_id   = var.project_id
-  address_name = var.static_ip_name
-  description  = "Static IP for ClusterKit ingress LoadBalancer"
-}
-
-# Static IP for Ingress (Staging) - Removed to share prod IP and save £5/month
-# Staging now uses clusterkit-ingress-ip (GKE routes by hostname)
