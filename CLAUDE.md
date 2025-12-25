@@ -42,12 +42,14 @@ Single Gateway (34.149.49.202)
 - GKE Autopilot cluster
 - Gateway API (Gateway, SSL certificates, ReferenceGrants)
 - Static IP (`clusterkit-ingress-ip`)
+- Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
+- Workload Identity bindings for database access
 - IAM (service accounts with Workload Identity)
 - Logging optimization (project-level)
 
-**2. Project-Specific Terraform** (`terraform/projects/torale/`):
-- Cloud SQL instances
-- Application-specific service accounts
+**2. Project-Specific Terraform** (`terraform/projects/<project>/`):
+- Project-specific databases and users (created in shared instance)
+- Application-specific GCS buckets and service accounts
 - Project resources separate from cluster
 
 Both use the same GCP project (`baldmaninc`) but maintain separate Terraform states.
