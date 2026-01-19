@@ -105,12 +105,22 @@ module "ssl_cert_a2aregistry_beta" {
   depends_on = [google_project_service.required_apis]
 }
 
+module "ssl_cert_repowire_prod" {
+  source = "./modules/ssl-certificate"
+
+  project_id       = var.project_id
+  certificate_name = "repowire-prod-cert"
+  domains          = ["repowire.io"]
+
+  depends_on = [google_project_service.required_apis]
+}
+
 # Gateway API - Shared Gateway for all applications
 module "gateway" {
   source = "./modules/gateway-api"
 
   gateway_name      = "clusterkit-gateway"
-  gateway_namespace = "torale"
+  gateway_namespace = "clusterkit"
   static_ip_name    = var.static_ip_name
 
   ssl_certificate_names = [
@@ -118,10 +128,11 @@ module "gateway" {
     module.ssl_cert_torale_staging.certificate_name,
     module.ssl_cert_bananagraph_prod.certificate_name,
     module.ssl_cert_a2aregistry_beta.certificate_name,
+    module.ssl_cert_repowire_prod.certificate_name,
   ]
 
-  # Allow HTTPRoutes in torale namespace to reference services in torale-staging, bananagraph, and a2aregistry
-  allowed_route_namespaces = ["torale-staging", "bananagraph", "a2aregistry"]
+  # Allow HTTPRoutes in clusterkit namespace to reference services in app namespaces
+  allowed_route_namespaces = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire"]
 
   depends_on = [
     module.gke,
@@ -130,6 +141,7 @@ module "gateway" {
     module.ssl_cert_torale_staging,
     module.ssl_cert_bananagraph_prod,
     module.ssl_cert_a2aregistry_beta,
+    module.ssl_cert_repowire_prod,
   ]
 }
 
@@ -200,4 +212,10 @@ resource "google_service_account_iam_member" "workload_identity_a2aregistry" {
   service_account_id = module.cloudsql_proxy_sa.service_account_name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[a2aregistry/a2aregistry-sa]"
+}
+
+resource "google_service_account_iam_member" "workload_identity_bananagraph" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[bananagraph/bananagraph-sa]"
 }

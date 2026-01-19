@@ -27,41 +27,42 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: myapp-prod
-  namespace: torale  # MUST be 'torale' (Gateway namespace)
+  namespace: clusterkit  # MUST be 'clusterkit' (Gateway namespace)
   annotations:
     # REQUIRED: Disable Cloudflare proxy for GCP SSL to work
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 spec:
   parentRefs:
   - name: clusterkit-gateway  # Shared Gateway
-    namespace: torale
+    namespace: clusterkit
   hostnames:
   - "myapp.yourdomain.com"  # Your domain
   rules:
   - backendRefs:
-    - name: myapp-service  # Your Service name
-      port: 80             # Your Service port
+    - name: myapp-service    # Your Service name
+      namespace: myapp       # Your app's namespace (cross-namespace ref)
+      port: 80               # Your Service port
 ```
 
-**For staging** (cross-namespace):
+**For staging** (same pattern, different service namespace):
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: myapp-staging
-  namespace: torale  # HTTPRoute in torale namespace
+  namespace: clusterkit  # HTTPRoute in clusterkit namespace
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 spec:
   parentRefs:
   - name: clusterkit-gateway
-    namespace: torale
+    namespace: clusterkit
   hostnames:
   - "staging.myapp.yourdomain.com"
   rules:
   - backendRefs:
     - name: myapp-service
-      namespace: myapp-staging  # Service in different namespace
+      namespace: myapp-staging  # Service in staging namespace
       port: 80
 ```
 
@@ -85,7 +86,7 @@ spec:
 3. **Verify deployment**:
    ```bash
    # Check HTTPRoute attached to Gateway
-   kubectl describe httproute myapp-prod -n torale
+   kubectl describe httproute myapp-prod -n clusterkit
 
    # Should show: "Accepted: True"
    ```
@@ -109,7 +110,7 @@ spec:
 
 ### HTTPRoute not attaching
 - **Issue**: `kubectl describe httproute` shows `Accepted: False`
-- **Fix**: Ensure `namespace: torale` in HTTPRoute metadata
+- **Fix**: Ensure `namespace: clusterkit` in HTTPRoute metadata
 - **Fix**: Ensure Gateway name is `clusterkit-gateway`
 
 ### SSL certificate warning
@@ -138,13 +139,13 @@ spec:
 
 1. **Check Gateway status**:
    ```bash
-   kubectl get gateway clusterkit-gateway -n torale
+   kubectl get gateway clusterkit-gateway -n clusterkit
    ```
    Should show `PROGRAMMED: True` and `ADDRESS: 34.149.49.202`
 
 2. **Check HTTPRoute status**:
    ```bash
-   kubectl describe httproute <your-route> -n torale
+   kubectl describe httproute <your-route> -n clusterkit
    ```
    Look for `Accepted: True` under Conditions
 
@@ -157,9 +158,9 @@ spec:
 ## Reference
 
 - Gateway name: `clusterkit-gateway`
-- Gateway namespace: `torale`
+- Gateway namespace: `clusterkit`
 - Gateway IP: `34.149.49.202`
-- HTTPRoute namespace: `torale` (always, even for staging)
+- HTTPRoute namespace: `clusterkit` (all apps, centralized routing)
 - Required annotation: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
 
 For operational/maintenance questions, see `docs/maintenance.md`.

@@ -22,12 +22,14 @@ ClusterKit is a simplified Kubernetes platform for personal projects on GKE Auto
 ClusterKit uses **Gateway API** (successor to Ingress) for cost-effective multi-tenant routing:
 
 ```
-Single Gateway (34.149.49.202)
+clusterkit namespace (Gateway + all HTTPRoutes)
+├── Gateway (clusterkit-gateway, IP: 34.149.49.202)
 ├── HTTPRoute (torale.ai) → Service (torale/torale-frontend)
 ├── HTTPRoute (api.torale.ai) → Service (torale/torale-api)
 ├── HTTPRoute (docs.torale.ai) → Service (torale/torale-docs)
-├── HTTPRoute (staging.torale.ai) → Service (torale-staging/torale-frontend)  # cross-namespace
-└── HTTPRoute (api.staging.torale.ai) → Service (torale-staging/torale-api)
+├── HTTPRoute (staging.torale.ai) → Service (torale-staging/torale-frontend)
+├── HTTPRoute (bananagraph.com) → Service (bananagraph/bananagraph-service)
+└── HTTPRoute (beta.a2aregistry.org) → Service (a2aregistry/a2aregistry-api)
 ```
 
 **Benefits:**
@@ -83,9 +85,9 @@ Reusable modules in `terraform/modules/`:
 ### Gateway API Conventions
 
 **HTTPRoute Requirements:**
-- MUST be in `torale` namespace (Gateway namespace)
+- MUST be in `clusterkit` namespace (Gateway namespace)
 - MUST include annotation: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
-- Cross-namespace service refs: Add `namespace: torale-staging` to backendRefs
+- Cross-namespace service refs: Add `namespace: <app-namespace>` to backendRefs
 - ExternalDNS auto-creates DNS from `hostnames` field
 
 **Example HTTPRoute:**
@@ -94,18 +96,19 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: app-prod
-  namespace: torale
+  namespace: clusterkit
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 spec:
   parentRefs:
   - name: clusterkit-gateway
-    namespace: torale
+    namespace: clusterkit
   hostnames:
   - "app.domain.com"
   rules:
   - backendRefs:
     - name: app-service
+      namespace: myapp  # Cross-namespace reference to app's service
       port: 80
 ```
 
@@ -161,10 +164,10 @@ tolerations:
 
 ### Gateway API Integration
 
-- Uses single shared Gateway (`clusterkit-gateway`) in `torale` namespace
+- Uses single shared Gateway (`clusterkit-gateway`) in `clusterkit` namespace
 - Gateway IP: `clusterkit-ingress-ip` (34.149.49.202)
-- HTTPRoutes attach to Gateway for routing rules
-- Cross-namespace routing via ReferenceGrants (HTTPRoutes in `torale` → services in `torale-staging`)
+- All HTTPRoutes live in `clusterkit` namespace (centralized routing)
+- Cross-namespace routing via ReferenceGrants (HTTPRoutes in `clusterkit` → services in app namespaces)
 - ExternalDNS watches HTTPRoutes and auto-creates DNS records
 - **Critical**: HTTPRoute annotation `cloudflare-proxied: false` required for GCP SSL to work
 
@@ -210,12 +213,12 @@ terraform apply
 gcloud container clusters get-credentials clusterkit --region us-central1 --project baldmaninc
 
 # Check Gateway
-kubectl get gateway clusterkit-gateway -n torale
-kubectl describe gateway clusterkit-gateway -n torale
+kubectl get gateway clusterkit-gateway -n clusterkit
+kubectl describe gateway clusterkit-gateway -n clusterkit
 
 # Check HTTPRoutes
-kubectl get httproute -n torale
-kubectl describe httproute <name> -n torale
+kubectl get httproute -n clusterkit
+kubectl describe httproute <name> -n clusterkit
 
 # Check SSL certificates
 gcloud compute ssl-certificates list
@@ -258,8 +261,8 @@ See `docs/app-integration.md` for application developer guide.
 See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 
 **Quick checks:**
-1. Gateway status: `kubectl get gateway clusterkit-gateway -n torale` (should show PROGRAMMED: True)
-2. HTTPRoute status: `kubectl describe httproute <name> -n torale` (should show Accepted: True)
+1. Gateway status: `kubectl get gateway clusterkit-gateway -n clusterkit` (should show PROGRAMMED: True)
+2. HTTPRoute status: `kubectl describe httproute <name> -n clusterkit` (should show Accepted: True)
 3. SSL cert status: `gcloud compute ssl-certificates describe <cert-name>`
 4. DNS resolution: `dig +short domain.com @1.1.1.1` (should return 34.149.49.202)
 5. ExternalDNS logs: `kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns`
@@ -280,9 +283,9 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **Cluster:** GKE Autopilot in us-central1
 - **Project:** baldmaninc
 - **Domains:** Managed via Cloudflare
-- **Gateway:** clusterkit-gateway (namespace: torale, IP: 34.149.49.202)
-- **HTTPRoutes:** 5 routes (3 prod, 2 staging) all in `torale` namespace
-- **Production:** Shares cluster with staging (separate namespaces: `torale`, `torale-staging`)
+- **Gateway:** clusterkit-gateway (namespace: clusterkit, IP: 34.149.49.202)
+- **HTTPRoutes:** All routes in `clusterkit` namespace with cross-namespace service refs
+- **App Namespaces:** torale, torale-staging, bananagraph, a2aregistry, repowire
 - **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled)
 - **Cost Savings:** £5/month saved by using single Gateway IP instead of 2 separate IPs
 
@@ -299,5 +302,5 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 
 **Gateway troubleshooting:**
 - If PROGRAMMED: False, check SSL certs and static IP
-- Force reconciliation: `kubectl annotate gateway clusterkit-gateway -n torale reconcile="$(date +%s)" --overwrite`
-- Check events: `kubectl describe gateway clusterkit-gateway -n torale`
+- Force reconciliation: `kubectl annotate gateway clusterkit-gateway -n clusterkit reconcile="$(date +%s)" --overwrite`
+- Check events: `kubectl describe gateway clusterkit-gateway -n clusterkit`

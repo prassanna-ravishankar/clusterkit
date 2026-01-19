@@ -58,7 +58,7 @@ terraform import -var="project_id=baldmaninc" \
 # Example: Import Gateway
 terraform import -var="project_id=baldmaninc" \
   'module.gateway.kubernetes_manifest.gateway' \
-  'apiVersion=gateway.networking.k8s.io/v1,kind=Gateway,namespace=torale,name=clusterkit-gateway'
+  'apiVersion=gateway.networking.k8s.io/v1,kind=Gateway,namespace=clusterkit,name=clusterkit-gateway'
 ```
 
 ## Adding Domains
@@ -188,7 +188,7 @@ For wildcard support, migrate to cert-manager + Let's Encrypt (requires DNS-01 c
 
 2. Check HTTPRoute is attached:
    ```bash
-   kubectl describe httproute <name> -n torale
+   kubectl describe httproute <name> -n clusterkit
    # Should show: Accepted: True
    ```
 
@@ -205,10 +205,10 @@ For wildcard support, migrate to cert-manager + Let's Encrypt (requires DNS-01 c
 
 ```bash
 # Check Gateway
-kubectl get gateway clusterkit-gateway -n torale
+kubectl get gateway clusterkit-gateway -n clusterkit
 
 # Detailed status
-kubectl describe gateway clusterkit-gateway -n torale
+kubectl describe gateway clusterkit-gateway -n clusterkit
 
 # Should show:
 # - ADDRESS: 34.149.49.202
@@ -220,25 +220,25 @@ kubectl describe gateway clusterkit-gateway -n torale
 
 ```bash
 # All HTTPRoutes
-kubectl get httproute -n torale
+kubectl get httproute -n clusterkit
 
 # Detailed status
-kubectl describe httproute <name> -n torale
+kubectl describe httproute <name> -n clusterkit
 
 # Check which routes are attached to Gateway
-kubectl get gateway clusterkit-gateway -n torale -o jsonpath='{.status.listeners[0].attachedRoutes}'
+kubectl get gateway clusterkit-gateway -n clusterkit -o jsonpath='{.status.listeners[0].attachedRoutes}'
 ```
 
 ### ReferenceGrant Management
 
-ReferenceGrants allow HTTPRoutes in `torale` namespace to reference services in other namespaces (e.g., `torale-staging`).
+ReferenceGrants allow HTTPRoutes in `clusterkit` namespace to reference services in app namespaces (e.g., `torale`, `torale-staging`, `bananagraph`).
 
 ```bash
 # Check ReferenceGrants
-kubectl get referencegrant -n torale-staging
+kubectl get referencegrant -n clusterkit-staging
 
 # Verify permissions
-kubectl describe referencegrant allow-torale-to-torale-staging-services -n torale-staging
+kubectl describe referencegrant allow-clusterkit-to-torale-staging-services -n clusterkit-staging
 ```
 
 **Adding new namespace for cross-namespace routing**:
@@ -260,7 +260,7 @@ Apply Terraform to create ReferenceGrant in the new namespace.
 **Gateway not getting IP address**:
 1. Check Gateway events:
    ```bash
-   kubectl describe gateway clusterkit-gateway -n torale
+   kubectl describe gateway clusterkit-gateway -n clusterkit
    ```
 
 2. Look for errors in events section
@@ -276,7 +276,7 @@ Apply Terraform to create ReferenceGrant in the new namespace.
 2. Verify static IP exists: `gcloud compute addresses list --global`
 3. Force reconciliation:
    ```bash
-   kubectl annotate gateway clusterkit-gateway -n torale reconcile="$(date +%s)" --overwrite
+   kubectl annotate gateway clusterkit-gateway -n clusterkit reconcile="$(date +%s)" --overwrite
    ```
 
 ## ExternalDNS Management
@@ -361,7 +361,7 @@ helm upgrade external-dns external-dns/external-dns \
 
 **HTTPRoute not attaching to Gateway**:
 ```bash
-kubectl describe httproute <name> -n torale
+kubectl describe httproute <name> -n clusterkit
 
 # Check for:
 # - Accepted: True
@@ -400,10 +400,10 @@ curl -vI https://your-domain.com 2>&1 | grep -A 5 "SSL certificate"
 **Cross-namespace routing not working (staging)**:
 ```bash
 # Check ReferenceGrant exists
-kubectl get referencegrant -n torale-staging
+kubectl get referencegrant -n clusterkit-staging
 
 # Verify HTTPRoute has correct backendRef
-kubectl get httproute <name> -n torale -o yaml | grep -A 5 backendRefs
+kubectl get httproute <name> -n clusterkit -o yaml | grep -A 5 backendRefs
 
 # Should show:
 #   - name: service-name
@@ -416,12 +416,12 @@ kubectl get httproute <name> -n torale -o yaml | grep -A 5 backendRefs
 **Gateway completely down**:
 1. Check Gateway status:
    ```bash
-   kubectl describe gateway clusterkit-gateway -n torale
+   kubectl describe gateway clusterkit-gateway -n clusterkit
    ```
 
 2. If PROGRAMMED: False, delete and recreate:
    ```bash
-   kubectl delete gateway clusterkit-gateway -n torale
+   kubectl delete gateway clusterkit-gateway -n clusterkit
    terraform apply -var="project_id=baldmaninc"
    ```
 
@@ -509,10 +509,10 @@ terraform state pull > backup-state.json
 **Kubernetes resources**:
 ```bash
 # Backup all HTTPRoutes
-kubectl get httproute -n torale -o yaml > backup-httproutes.yaml
+kubectl get httproute -n clusterkit -o yaml > backup-httproutes.yaml
 
 # Backup Gateway
-kubectl get gateway clusterkit-gateway -n torale -o yaml > backup-gateway.yaml
+kubectl get gateway clusterkit-gateway -n clusterkit -o yaml > backup-gateway.yaml
 
 # Backup ReferenceGrants
 kubectl get referencegrant --all-namespaces -o yaml > backup-referencegrants.yaml
@@ -534,10 +534,10 @@ kubectl apply -f backup-httproutes.yaml
 **Verify after recovery**:
 ```bash
 # Gateway programmed
-kubectl get gateway clusterkit-gateway -n torale
+kubectl get gateway clusterkit-gateway -n clusterkit
 
 # HTTPRoutes attached
-kubectl get httproute -n torale
+kubectl get httproute -n clusterkit
 
 # DNS resolving
 dig +short torale.ai @1.1.1.1
@@ -555,7 +555,7 @@ If GKE cluster is lost:
 
 2. **Verify Gateway**:
    ```bash
-   kubectl get gateway clusterkit-gateway -n torale
+   kubectl get gateway clusterkit-gateway -n clusterkit
    ```
 
 3. **Restore application HTTPRoutes** (application teams responsible for their apps)

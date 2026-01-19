@@ -93,7 +93,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: myapp
-  namespace: torale
+  namespace: clusterkit
 spec:
   replicas: 1
   selector:
@@ -116,7 +116,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: myapp
-  namespace: torale
+  namespace: clusterkit
 spec:
   selector:
     app: myapp
@@ -128,13 +128,13 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: myapp-prod
-  namespace: torale
+  namespace: clusterkit
   annotations:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 spec:
   parentRefs:
   - name: clusterkit-gateway
-    namespace: torale
+    namespace: clusterkit
   hostnames:
   - "myapp.yourdomain.com"
   rules:
@@ -243,13 +243,13 @@ Compare to:
 
 ### Check Gateway Status
 ```bash
-kubectl get gateway clusterkit-gateway -n torale
+kubectl get gateway clusterkit-gateway -n clusterkit
 # Should show: PROGRAMMED: True, ADDRESS: 34.149.49.202
 ```
 
 ### List HTTPRoutes
 ```bash
-kubectl get httproute -n torale
+kubectl get httproute -n clusterkit
 ```
 
 ### Check ExternalDNS
