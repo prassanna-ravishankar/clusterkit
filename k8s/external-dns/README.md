@@ -83,10 +83,15 @@ Benefits of proxied mode:
 - WAF (Web Application Firewall)
 - Cloudflare analytics
 
-To override per-HTTPRoute (not normally needed):
+Every HTTPRoute **must** include the proxied annotation:
 ```yaml
 metadata:
   annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+```
+
+To bypass Cloudflare proxy for a specific route (e.g., WebSocket-heavy services):
+```yaml
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 ```
 

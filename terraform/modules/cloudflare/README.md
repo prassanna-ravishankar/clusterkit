@@ -58,7 +58,7 @@ external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
 
 1. **SSL/TLS Mode**: Full (Strict)
    - Cloudflare → Origin Server uses valid SSL certificate
-   - cert-manager provides the origin certificate
+   - Cloudflare Origin CA wildcard cert on Gateway validates the connection
 
 2. **Minimum TLS Version**: 1.2
    - Configured automatically by this module
@@ -187,9 +187,9 @@ Check Cloudflare Analytics for:
 3. Or disable rate limiting for specific IPs
 
 ### SSL/TLS Errors
-1. Verify origin certificate is valid (from cert-manager)
+1. Verify Origin CA cert is attached to Gateway: `gcloud compute ssl-certificates list`
 2. Check SSL/TLS mode is "Full (Strict)"
-3. Ensure NGINX Ingress is serving HTTPS
+3. Ensure Gateway is PROGRAMMED: `kubectl get gateway clusterkit-gateway -n clusterkit`
 
 ## Resources
 
