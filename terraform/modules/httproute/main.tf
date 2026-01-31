@@ -10,12 +10,10 @@ resource "kubernetes_manifest" "httproute" {
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "HTTPRoute"
     metadata = {
-      name      = var.route_name
-      namespace = var.route_namespace
+      name        = var.route_name
+      namespace   = var.route_namespace
       annotations = merge(
-        {
-          "external-dns.alpha.kubernetes.io/cloudflare-proxied" = "false"
-        },
+        { "external-dns.alpha.kubernetes.io/cloudflare-proxied" = "true" },
         var.annotations
       )
     }

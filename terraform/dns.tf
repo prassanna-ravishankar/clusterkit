@@ -1,11 +1,7 @@
-# Cloudflare DNS Records - Single source of truth for all domains
+# Cloudflare DNS Records — non-gateway records only
 #
-# Provider v4: root records use full domain name, subdomains use short name.
-# ExternalDNS TXT ownership records (heritage=external-dns) are NOT managed here.
-
-locals {
-  gateway_ip = module.networking.static_ip_address
-}
+# Gateway A records are managed by ExternalDNS (creates proxied records from HTTPRoutes).
+# This file manages: email (MX/DKIM/SPF), verification TXT, GitHub Pages, Cloudflare Pages.
 
 # torale.ai
 module "dns_torale" {
@@ -13,13 +9,6 @@ module "dns_torale" {
   zone_id = var.cloudflare_zone_ids["torale.ai"]
 
   records = [
-    # Gateway A records
-    { key = "root", name = "torale.ai", content = local.gateway_ip },
-    { name = "api", content = local.gateway_ip },
-    { name = "docs", content = local.gateway_ip },
-    { name = "staging", content = local.gateway_ip },
-    { name = "api.staging", content = local.gateway_ip },
-
     # Clerk authentication
     { name = "accounts", content = "accounts.clerk.services", type = "CNAME" },
     { name = "clerk", content = "frontend-api.clerk.services", type = "CNAME" },
@@ -45,28 +34,12 @@ module "dns_torale" {
   ]
 }
 
-# bananagraph.com
-module "dns_bananagraph" {
-  source  = "./modules/cloudflare-dns"
-  zone_id = var.cloudflare_zone_ids["bananagraph.com"]
-
-  records = [
-    # Gateway A records
-    { key = "root", name = "bananagraph.com", content = local.gateway_ip },
-    { name = "www", content = local.gateway_ip },
-    { name = "api", content = local.gateway_ip },
-  ]
-}
-
-# a2aregistry.org
+# a2aregistry.org (no gateway records — only GitHub Pages, verification)
 module "dns_a2aregistry" {
   source  = "./modules/cloudflare-dns"
   zone_id = var.cloudflare_zone_ids["a2aregistry.org"]
 
   records = [
-    # Gateway A record
-    { name = "beta", content = local.gateway_ip },
-
     # GitHub Pages (root domain - 4 A records)
     { key = "gh-pages-1", name = "a2aregistry.org", content = "185.199.108.153", proxied = true },
     { key = "gh-pages-2", name = "a2aregistry.org", content = "185.199.109.153", proxied = true },
@@ -80,18 +53,6 @@ module "dns_a2aregistry" {
     # Verification TXT records
     { key = "txt-google-verify", name = "a2aregistry.org", content = "google-site-verification=mEA3Y3qH_-_X9XAKFblpLkMBLS80K8k3R0ELczDZmRo", type = "TXT" },
     { key = "txt-gh-pages", name = "_github-pages-challenge-prassanna-ravishankar", content = "7f19b004f93b6b454fd825b436f33b", type = "TXT" },
-  ]
-}
-
-# repowire.io
-module "dns_repowire" {
-  source  = "./modules/cloudflare-dns"
-  zone_id = var.cloudflare_zone_ids["repowire.io"]
-
-  records = [
-    # Gateway A records
-    { key = "root", name = "repowire.io", content = local.gateway_ip },
-    { name = "relay", content = local.gateway_ip },
   ]
 }
 

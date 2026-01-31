@@ -23,8 +23,14 @@ txtOwnerId: clusterkit
 
 # Cloudflare-specific settings
 cloudflare:
-  proxied: false  # Default to gray cloud (DNS only) - required for GCP-managed SSL certs
+  proxied: true  # Orange cloud (proxied) — safe with Cloudflare Origin CA certs on Gateway
   dnsRecordsPerPage: 100
+
+# Global default for proxied mode. Individual HTTPRoutes must also have
+# the annotation: external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+# (the global flag alone is unreliable in some ExternalDNS versions)
+extraArgs:
+  - --cloudflare-proxied
 
 # Use existing secret for Cloudflare API token
 env:

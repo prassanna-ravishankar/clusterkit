@@ -102,15 +102,22 @@ variable "prefect_db_password" {
   sensitive   = true
 }
 
+# Domains that get Cloudflare Origin CA wildcard certs on the Gateway
+variable "origin_ca_domains" {
+  description = "Domains to generate Cloudflare Origin CA wildcard certs for (must have zone IDs in cloudflare_zone_ids)"
+  type        = list(string)
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io"]
+}
+
 # Cloudflare Zone IDs
 variable "cloudflare_zone_ids" {
   description = "Map of domain to Cloudflare Zone ID"
   type        = map(string)
   default = {
-    "torale.ai"        = "643857070153106adc3aa071170d54fe"
-    "bananagraph.com"  = "af3f2b2569cbaa24a2a2175d84b5a016"
-    "a2aregistry.org"  = "9dbe037cf8e69ded608e718dd47c4d95"
-    "repowire.io"      = "6e404d07f03aa873cbdeb88ad125ae51"
+    "torale.ai"         = "643857070153106adc3aa071170d54fe"
+    "bananagraph.com"   = "af3f2b2569cbaa24a2a2175d84b5a016"
+    "a2aregistry.org"   = "9dbe037cf8e69ded608e718dd47c4d95"
+    "repowire.io"       = "6e404d07f03aa873cbdeb88ad125ae51"
     "feedforward.space" = "dc8c906b65b389ce71a6f2908db94d54"
   }
 }

@@ -21,7 +21,8 @@ ClusterKit uses two separate Terraform states:
 
 **Root Terraform** (`terraform/`):
 - GKE Autopilot cluster
-- Shared Gateway and SSL certificates
+- Shared Gateway and Origin CA wildcard SSL certificates
+- Cloudflare zone settings (Full Strict SSL)
 - Static IPs
 - Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
 - IAM (service accounts)
@@ -45,70 +46,25 @@ terraform plan   # Uses default project_id from variables.tf
 terraform apply
 ```
 
-### Importing Existing Resources
-
-If manually created resources need to be brought under Terraform management:
-
-```bash
-# Example: Import SSL certificate
-terraform import -var="project_id=baldmaninc" \
-  module.ssl_cert_torale_prod.google_compute_managed_ssl_certificate.cert \
-  projects/baldmaninc/global/sslCertificates/torale-prod-cert
-
-# Example: Import Gateway
-terraform import -var="project_id=baldmaninc" \
-  'module.gateway.kubernetes_manifest.gateway' \
-  'apiVersion=gateway.networking.k8s.io/v1,kind=Gateway,namespace=clusterkit,name=clusterkit-gateway'
-```
-
 ## Adding Domains
 
 ### Adding Subdomain to Existing Domain
 
-**Process:** Add to SSL cert → Add DNS record → Apply Terraform → Create HTTPRoute
+No infrastructure changes needed — wildcard Origin CA certs cover all subdomains.
 
-1. **Update SSL certificate** (15 min downtime):
-
-   Edit `terraform/main.tf`:
-   ```hcl
-   module "ssl_cert_torale_prod" {
-     domains = [
-       "torale.ai",
-       "api.torale.ai",
-       "docs.torale.ai",
-       "shop.torale.ai",  # NEW
-     ]
-   }
-   ```
-
-2. **Add DNS record** in `terraform/dns.tf`:
-   ```hcl
-   module "dns_torale" {
-     records = [
-       # ... existing records ...
-       { name = "shop", content = local.gateway_ip },  # NEW
-     ]
-   }
-   ```
-
-3. **Apply Terraform**:
-   ```bash
-   cd terraform
-   terraform apply -var="project_id=baldmaninc"
-   ```
-
-   **Note**: This recreates the certificate (~15 min provisioning time with brief downtime)
-
-4. **Application team creates HTTPRoute**:
+1. **Application team creates HTTPRoute**:
    - See `docs/app-integration.md` for template
+   - Deploy to `clusterkit` namespace
 
-5. **Verify**:
+2. **ExternalDNS auto-creates DNS** (proxied A record in Cloudflare)
+
+3. **Verify**:
    ```bash
-   # Check cert provisioned
-   gcloud compute ssl-certificates describe torale-prod-cert
-
-   # Check DNS created
+   # Check DNS (returns Cloudflare IPs since proxied)
    dig +short shop.torale.ai @1.1.1.1
+
+   # Check HTTPRoute attached
+   kubectl describe httproute <name> -n clusterkit
    ```
 
 ### Adding Completely New Domain
@@ -118,7 +74,7 @@ terraform import -var="project_id=baldmaninc" \
    - Edit existing token
    - Add new domain to "Zone Resources"
 
-2. **Add zone ID** to `terraform/variables.tf`:
+2. **Add zone ID and domain** to `terraform/variables.tf`:
    ```hcl
    variable "cloudflare_zone_ids" {
      default = {
@@ -126,100 +82,63 @@ terraform import -var="project_id=baldmaninc" \
        "newdomain.com" = "YOUR_ZONE_ID"
      }
    }
-   ```
 
-3. **Create SSL certificate module** in `terraform/main.tf`:
-   ```hcl
-   module "ssl_cert_newdomain_prod" {
-     source = "./modules/ssl-certificate"
-
-     project_id       = var.project_id
-     certificate_name = "newdomain-prod-cert"
-     domains          = ["newdomain.com", "api.newdomain.com"]
-   }
-   ```
-
-4. **Update Gateway** to reference new cert:
-   ```hcl
-   module "gateway" {
-     ssl_certificate_names = [
-       module.ssl_cert_torale_prod.certificate_name,
-       module.ssl_cert_torale_staging.certificate_name,
-       module.ssl_cert_newdomain_prod.certificate_name,  # NEW
+   variable "origin_ca_domains" {
+     default = [
+       # ... existing domains ...
+       "newdomain.com",
      ]
    }
    ```
 
-5. **Add DNS records** in `terraform/dns.tf`:
-   ```hcl
-   module "dns_newdomain" {
-     source  = "./modules/cloudflare-dns"
-     zone_id = var.cloudflare_zone_ids["newdomain.com"]
-
-     records = [
-       { key = "root", name = "newdomain.com", content = local.gateway_ip },
-       { name = "api", content = local.gateway_ip },
-     ]
-   }
-   ```
-
-6. **Apply Terraform**:
+3. **Apply Terraform**:
    ```bash
    terraform apply -var="project_id=baldmaninc"
    ```
+   This generates an Origin CA cert, adds it to the Gateway, and sets Full (Strict) SSL on the zone.
+
+6. **Add ReferenceGrant** if the app lives in a new namespace:
+   ```hcl
+   module "gateway" {
+     allowed_route_namespaces = [
+       # ... existing namespaces ...
+       "newapp",  # Add here
+     ]
+   }
+   ```
+
+7. **Application team deploys HTTPRoute** — ExternalDNS handles DNS automatically.
 
 ## SSL Certificate Management
+
+### Current Setup
+
+Cloudflare Origin CA wildcard certificates per domain, generated automatically by Terraform:
+- `torale.ai` + `*.torale.ai`
+- `bananagraph.com` + `*.bananagraph.com`
+- `a2aregistry.org` + `*.a2aregistry.org`
+- `repowire.io` + `*.repowire.io`
+
+SSL mode: **Full (Strict)** per zone — Cloudflare validates the Origin CA cert on the Gateway.
+
+Certs are generated via `tls_private_key` + `tls_cert_request` + `cloudflare_origin_ca_certificate` resources. Private keys are RSA 2048-bit and stored in Terraform state.
 
 ### Checking Certificate Status
 
 ```bash
-# List all certificates
+# List all GCP SSL certificates (Origin CA certs are self-managed)
 gcloud compute ssl-certificates list
 
 # Check specific certificate
-gcloud compute ssl-certificates describe torale-prod-cert
-
-# Check which domains are covered
-gcloud compute ssl-certificates describe torale-prod-cert \
-  --format="value(managed.domains)"
+gcloud compute ssl-certificates describe torale-ai-origin-cert
 ```
 
-Certificate status values:
-- `PROVISIONING` - Certificate being created (~15 min)
-- `ACTIVE` - Certificate ready and serving traffic
-- `RENEWAL_FAILED` - Issue with renewal (check domain ownership)
+### Rotating Origin CA Certs
 
-### Certificate Limitations
+Origin CA certs are valid for 15 years. To force rotation:
 
-Google-managed certificates:
-- ✅ Up to 100 non-wildcard domains per certificate
-- ❌ No wildcard domain support (`*.torale.ai` not supported)
-- ❌ Updates not supported (must recreate for new domains)
-- ✅ Automatic renewal before expiration
-
-For wildcard support, migrate to cert-manager + Let's Encrypt (requires DNS-01 challenge setup).
-
-### Troubleshooting Certificate Issues
-
-**Certificate stuck in PROVISIONING**:
-1. Check DNS points to Gateway IP:
-   ```bash
-   dig +short yourdomain.com @1.1.1.1
-   # Should return: 34.149.49.202
-   ```
-
-2. Check HTTPRoute is attached:
-   ```bash
-   kubectl describe httproute <name> -n clusterkit
-   # Should show: Accepted: True
-   ```
-
-3. Wait up to 15 minutes for initial provisioning
-
-**Certificate shows RENEWAL_FAILED**:
-1. Verify domain still resolves correctly
-2. Check Gateway is still using the certificate
-3. May need to delete and recreate certificate
+1. Taint the cert: `terraform taint 'cloudflare_origin_ca_certificate.origin_ca["domain.com"]'`
+2. `terraform apply` — `create_before_destroy` ensures zero-downtime rotation
 
 ## Gateway API Operations
 
@@ -235,7 +154,7 @@ kubectl describe gateway clusterkit-gateway -n clusterkit
 # Should show:
 # - ADDRESS: 34.149.49.202
 # - PROGRAMMED: True
-# - Attached Routes: 5 (or current count)
+# - Attached Routes: N (current count)
 ```
 
 ### Listing HTTPRoutes
@@ -253,14 +172,11 @@ kubectl get gateway clusterkit-gateway -n clusterkit -o jsonpath='{.status.liste
 
 ### ReferenceGrant Management
 
-ReferenceGrants allow HTTPRoutes in `clusterkit` namespace to reference services in app namespaces (e.g., `torale`, `torale-staging`, `bananagraph`).
+ReferenceGrants allow HTTPRoutes in `clusterkit` namespace to reference services in app namespaces.
 
 ```bash
 # Check ReferenceGrants
-kubectl get referencegrant -n clusterkit-staging
-
-# Verify permissions
-kubectl describe referencegrant allow-clusterkit-to-torale-staging-services -n clusterkit-staging
+kubectl get referencegrant --all-namespaces
 ```
 
 **Adding new namespace for cross-namespace routing**:
@@ -285,16 +201,13 @@ Apply Terraform to create ReferenceGrant in the new namespace.
    kubectl describe gateway clusterkit-gateway -n clusterkit
    ```
 
-2. Look for errors in events section
-
-3. Common issue: Static IP already in use
+2. Common issue: Static IP already in use
    ```bash
-   # Check IP assignment
    gcloud compute addresses describe clusterkit-ingress-ip --global
    ```
 
 **Gateway shows PROGRAMMED: False**:
-1. Check SSL certificates exist and are ACTIVE
+1. Check SSL certificates exist: `gcloud compute ssl-certificates list`
 2. Verify static IP exists: `gcloud compute addresses list --global`
 3. Force reconciliation:
    ```bash
@@ -318,47 +231,19 @@ kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns -f
 
 ### DNS Record Management
 
-ExternalDNS watches HTTPRoutes and creates corresponding DNS records in Cloudflare.
+ExternalDNS watches HTTPRoutes and creates proxied A records in Cloudflare.
 
 **How it works:**
 1. HTTPRoute with `hostnames: ["api.torale.ai"]` is created
 2. ExternalDNS detects the hostname
-3. Creates A record: `api.torale.ai` → `34.149.49.202`
+3. Creates proxied A record: `api.torale.ai` → `34.149.49.202` (orange cloud)
 4. Creates TXT record: `api.torale.ai` → `"heritage=external-dns,external-dns/owner=clusterkit"`
+5. Cloudflare CDN/WAF automatically active for the record
 
-**Viewing managed DNS records**:
-```bash
-# Filter logs for specific domain
-kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns | grep torale.ai
+### What Terraform Manages vs ExternalDNS
 
-# Check Cloudflare directly (requires CF_API_TOKEN)
-curl -X GET "https://api.cloudflare.com/client/v4/zones/ZONE_ID/dns_records" \
-  -H "Authorization: Bearer $CF_API_TOKEN" \
-  -H "Content-Type: application/json" | jq '.result[] | select(.name | contains("torale"))'
-```
-
-### Cloudflare Proxy Mode
-
-**CRITICAL**: DNS records MUST be "DNS only" (gray cloud), NOT "Proxied" (orange cloud).
-
-Orange cloud = Cloudflare terminates SSL → breaks GCP-managed certificates.
-
-**Fixing Cloudflare proxy issues**:
-1. Ensure HTTPRoute has annotation:
-   ```yaml
-   annotations:
-     external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
-   ```
-
-2. Check ExternalDNS config (should have `--cloudflare-proxied` flag):
-   ```bash
-   kubectl get deployment external-dns -n external-dns -o yaml | grep cloudflare-proxied
-   ```
-
-3. Manually disable in Cloudflare if needed:
-   - Go to Cloudflare DNS dashboard
-   - Click orange cloud icon → turns to gray cloud
-   - Set to "DNS only"
+- **ExternalDNS**: All gateway A records (created from HTTPRoutes, proxied)
+- **Terraform** (`dns.tf`): Email (MX/DKIM/SPF), verification TXT, GitHub Pages, Cloudflare Pages
 
 ### ExternalDNS Configuration
 
@@ -374,6 +259,7 @@ helm upgrade external-dns external-dns/external-dns \
 **Current configuration**:
 - Sources: `service`, `ingress`, `gateway-httproute`
 - Provider: `cloudflare`
+- Proxied: `true` (orange cloud by default)
 - Policy: `upsert-only` (creates/updates, never deletes)
 - TXT registry: Tracks ownership with TXT records
 
@@ -396,41 +282,27 @@ kubectl describe httproute <name> -n clusterkit
 # Check ExternalDNS created the record
 kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns | grep your-domain
 
-# Check DNS propagation
+# Check DNS propagation (should return Cloudflare IPs since proxied)
 dig +short your-domain.com @1.1.1.1
-# Should return: 34.149.49.202
-
-# Check Cloudflare dashboard
-# Verify record exists and is "DNS only" (gray cloud)
 ```
 
 **SSL certificate warning in browser**:
 ```bash
-# Verify domain is in certificate
-gcloud compute ssl-certificates describe torale-prod-cert \
-  --format="value(managed.domains)"
+# Verify Cloudflare SSL mode is Full (Strict) — check in Cloudflare dashboard or Terraform state
+# Verify Origin CA cert is attached to Gateway
+gcloud compute ssl-certificates list
 
-# Check certificate status
-gcloud compute ssl-certificates describe torale-prod-cert \
-  --format="value(managed.status)"
-# Should be: ACTIVE
-
-# Test SSL
-curl -vI https://your-domain.com 2>&1 | grep -A 5 "SSL certificate"
+# Test SSL chain (issuer should be Cloudflare)
+echo | openssl s_client -connect your-domain.com:443 2>/dev/null | openssl x509 -noout -issuer
 ```
 
 **Cross-namespace routing not working (staging)**:
 ```bash
 # Check ReferenceGrant exists
-kubectl get referencegrant -n clusterkit-staging
+kubectl get referencegrant -A
 
 # Verify HTTPRoute has correct backendRef
 kubectl get httproute <name> -n clusterkit -o yaml | grep -A 5 backendRefs
-
-# Should show:
-#   - name: service-name
-#     namespace: torale-staging
-#     port: 80
 ```
 
 ### Emergency Procedures
@@ -455,13 +327,7 @@ kubectl get httproute <name> -n clusterkit -o yaml | grep -A 5 backendRefs
 **ExternalDNS failing to create records**:
 1. Check Cloudflare API token:
    ```bash
-   # Get current secret
-   kubectl get secret cloudflare-api-token -n external-dns -o jsonpath='{.data.apiToken}' | base64 -d
-
-   # Test token
-   curl -X GET "https://api.cloudflare.com/client/v4/zones" \
-     -H "Authorization: Bearer YOUR_TOKEN" \
-     -H "Content-Type: application/json"
+   kubectl get secret external-dns -n external-dns -o jsonpath='{.data.cloudflare_api_token}' | base64 -d
    ```
 
 2. Restart ExternalDNS:
@@ -491,32 +357,9 @@ kubectl get httproute <name> -n clusterkit -o yaml | grep -A 5 backendRefs
 ### Checking Costs
 
 ```bash
-# View billing account
-gcloud billing accounts list
-
-# View project costs (requires billing account access)
-gcloud billing projects describe baldmaninc
-
 # GCP Console cost breakdown
 # https://console.cloud.google.com/billing/reports?project=baldmaninc
 ```
-
-### Cost Reduction Strategies
-
-If costs exceed budget:
-
-1. **Reduce logging**:
-   - Edit `terraform/modules/logging/` variables
-   - Increase INFO sampling rate (currently 0.1 = 10%)
-   - Reduce retention days (currently 7)
-
-2. **Right-size Cloud SQL**:
-   - Current: db-f1-micro (cheapest)
-   - If not heavily used, consider Cloud Run PostgreSQL
-
-3. **Audit workloads**:
-   - Check for overprovisioned resource requests
-   - Ensure Spot pods are used where possible
 
 ## Disaster Recovery
 
@@ -561,30 +404,9 @@ kubectl get gateway clusterkit-gateway -n clusterkit
 # HTTPRoutes attached
 kubectl get httproute -n clusterkit
 
-# DNS resolving
+# DNS resolving (should return Cloudflare IPs)
 dig +short torale.ai @1.1.1.1
 ```
-
-### Complete Cluster Rebuild
-
-If GKE cluster is lost:
-
-1. **Run Terraform**:
-   ```bash
-   cd terraform
-   terraform apply -var="project_id=baldmaninc"
-   ```
-
-2. **Verify Gateway**:
-   ```bash
-   kubectl get gateway clusterkit-gateway -n clusterkit
-   ```
-
-3. **Restore application HTTPRoutes** (application teams responsible for their apps)
-
-4. **Verify DNS and SSL** working
-
-**Note**: ExternalDNS will automatically recreate DNS records from HTTPRoutes.
 
 ## Reference
 
@@ -594,7 +416,9 @@ If GKE cluster is lost:
 - **Gateway**: clusterkit-gateway (namespace: clusterkit)
 - **Gateway IP**: 34.149.49.202
 - **Static IP name**: clusterkit-ingress-ip
+- **SSL**: Cloudflare Origin CA wildcard certs (Full Strict mode)
 - **ExternalDNS namespace**: external-dns
+- **DNS split**: ExternalDNS owns gateway A records, Terraform owns email/verification/Pages records
 - **Terraform states**:
   - Root: `terraform/terraform.tfstate`
   - Torale: `terraform/projects/torale/terraform.tfstate`

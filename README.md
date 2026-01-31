@@ -5,8 +5,8 @@
 Automates setup of:
 - GKE Autopilot cluster (managed Kubernetes)
 - Gateway API (shared HTTP(S) load balancer)
-- Google-managed SSL certificates (automatic TLS)
-- ExternalDNS (automatic Cloudflare DNS updates)
+- Cloudflare Origin CA SSL certificates (wildcard, 15-year)
+- ExternalDNS (automatic Cloudflare DNS updates, proxied by default)
 - Cost optimizations (logging, monitoring, Spot Pods)
 
 **Target cost: ~£25-30/month** for infrastructure + multiple applications.
@@ -14,8 +14,9 @@ Automates setup of:
 ## What You Get
 
 - **Shared Gateway**: One load balancer IP for all applications (saves £5/month per environment)
-- **Automatic HTTPS**: Google provisions and renews SSL certificates
-- **Automatic DNS**: Deploy an app, DNS record is created in Cloudflare
+- **Automatic HTTPS**: Cloudflare Origin CA wildcard certs — no cert changes for new subdomains
+- **Automatic DNS**: Deploy an app, ExternalDNS creates a proxied Cloudflare DNS record
+- **Cloudflare CDN/WAF**: All traffic proxied through Cloudflare (orange cloud) by default
 - **Cross-namespace routing**: Production and staging share the same Gateway
 - **Cost optimized**: Logging retention, sampling, Spot Pods (60-91% savings)
 
@@ -23,20 +24,22 @@ Automates setup of:
 
 ```
 ┌─────────────────┐
-│   Cloudflare    │  DNS: app.yourdomain.com → 34.149.49.202
-│  (ExternalDNS)  │  (auto-created from HTTPRoutes)
+│   Cloudflare    │  DNS: app.yourdomain.com → Cloudflare edge (proxied)
+│  CDN / WAF      │  SSL terminated at Cloudflare (Full Strict mode)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │  Gateway API    │  Shared Gateway (1 IP, multiple apps)
-│  (GKE Gateway)  │  SSL termination, hostname routing
+│  (GKE Gateway)  │  Origin CA wildcard cert, hostname routing
 └────────┬────────┘
          │
          ├──→ HTTPRoute (app1.domain.com) ──→ Service ──→ Pods
          ├──→ HTTPRoute (app2.domain.com) ──→ Service ──→ Pods
          └──→ HTTPRoute (staging.app.com)  ──→ Service ──→ Pods (different namespace)
 ```
+
+**SSL chain:** Client → Cloudflare (edge cert) → GKE Gateway (Origin CA cert) → Pod
 
 ## Quick Start
 
@@ -57,7 +60,7 @@ cd clusterkit
 gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
 
-# Deploy infrastructure
+# Deploy infrastructure (Origin CA certs are generated automatically)
 cd terraform
 terraform init
 terraform apply -var="project_id=YOUR_PROJECT_ID"
@@ -65,10 +68,11 @@ terraform apply -var="project_id=YOUR_PROJECT_ID"
 
 This creates:
 - GKE Autopilot cluster
-- Shared Gateway with SSL certificates
+- Shared Gateway with Origin CA wildcard certs
 - Static IP
 - IAM service accounts
 - Optimized logging configuration
+- Cloudflare Full (Strict) SSL mode per zone
 
 ### 2. Configure ExternalDNS
 
@@ -130,7 +134,7 @@ metadata:
   name: myapp-prod
   namespace: clusterkit
   annotations:
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
 spec:
   parentRefs:
   - name: clusterkit-gateway
@@ -143,25 +147,12 @@ spec:
       port: 80
 ```
 
-**Before deploying**, add your domain to the SSL certificate:
-
-Edit `terraform/main.tf`:
-```hcl
-module "ssl_cert_torale_prod" {
-  domains = [
-    "torale.ai",
-    "myapp.yourdomain.com",  # Add your domain
-  ]
-}
-```
-
-Apply Terraform, then deploy your app:
+Deploy:
 ```bash
-terraform apply -var="project_id=YOUR_PROJECT_ID"
 kubectl apply -f myapp.yaml
 ```
 
-Your app will be live at `https://myapp.yourdomain.com` with automatic SSL and DNS!
+Your app will be live at `https://myapp.yourdomain.com` with automatic SSL and DNS. The wildcard Origin CA cert covers any subdomain — no Terraform changes needed.
 
 ## Documentation
 
@@ -186,20 +177,22 @@ Benefits:
 
 ### SSL Certificates
 
-Google-managed SSL certificates:
-- Created via Terraform
-- Auto-renewed by Google
-- Attached to Gateway
-- Up to 100 domains per certificate
-- No wildcard support (each subdomain needs explicit entry)
+Cloudflare Origin CA wildcard certificates:
+- One cert per domain covering `domain.com` + `*.domain.com`
+- Generated automatically by Terraform (no manual steps)
+- 15-year validity, no renewal hassle
+- New subdomains covered automatically (wildcard)
+- Cloudflare Full (Strict) mode = end-to-end encryption
+- No Terraform changes needed for new subdomains
 
 ### DNS Automation
 
 ExternalDNS watches HTTPRoutes:
 1. HTTPRoute created with `hostnames: ["app.domain.com"]`
 2. ExternalDNS detects the hostname
-3. Creates A record in Cloudflare: `app.domain.com` → Gateway IP
-4. No manual DNS management needed
+3. Creates proxied A record in Cloudflare: `app.domain.com` → Gateway IP (orange cloud)
+4. Cloudflare CDN/WAF automatically active
+5. No manual DNS management needed
 
 ### Cost Optimizations
 
@@ -257,21 +250,22 @@ kubectl get httproute -n clusterkit
 kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
 ```
 
-### Verify DNS
+### Verify DNS (should return Cloudflare IPs, not Gateway IP)
 ```bash
 dig +short myapp.yourdomain.com @1.1.1.1
-# Should return: 34.149.49.202
+# Should return Cloudflare IPs (104.x.x.x) since records are proxied
 ```
+
+### Add New Subdomain
+
+Just deploy an HTTPRoute — ExternalDNS creates the DNS record, wildcard cert covers it:
+1. Create HTTPRoute with your subdomain
+2. Deploy: `kubectl apply -f httproute.yaml`
+3. Done. No Terraform changes needed.
 
 ### Add New Domain
 
 See [Maintenance Guide](docs/maintenance.md#adding-domains) for detailed instructions.
-
-Quick steps:
-1. Add domain to SSL certificate in `terraform/main.tf`
-2. Add DNS record in `terraform/dns.tf`
-3. Apply Terraform (15 min for cert provisioning)
-4. Create HTTPRoute
 
 ## Troubleshooting
 
@@ -279,21 +273,19 @@ See [Maintenance Guide](docs/maintenance.md#troubleshooting) for comprehensive t
 
 Common issues:
 - **HTTPRoute not attaching**: Check namespace is `clusterkit`
-- **DNS not resolving**: Check ExternalDNS logs and `terraform/dns.tf`
-- **SSL warning**: Ensure domain is in SSL certificate
-- **Cloudflare proxy**: Ensure annotation `cloudflare-proxied: "false"`
+- **DNS not resolving**: Check ExternalDNS logs
+- **SSL warning**: Verify Cloudflare zone SSL mode is "Full (Strict)"
 
 ## Project Structure
 
 ```
 .
 ├── terraform/                  # Infrastructure as Code
-│   ├── main.tf                 # Root config (cluster, Gateway, SSL, Cloud SQL)
-│   ├── dns.tf                  # Cloudflare DNS records (all domains)
+│   ├── main.tf                 # Root config (cluster, Gateway, Origin CA certs, Cloud SQL)
+│   ├── dns.tf                  # Cloudflare DNS records (email, verification only)
 │   ├── modules/                # Reusable modules
 │   │   ├── gke/                # GKE Autopilot cluster
 │   │   ├── gateway-api/        # Gateway + ReferenceGrants
-│   │   ├── ssl-certificate/    # Google-managed SSL
 │   │   ├── cloudflare-dns/     # Cloudflare DNS records
 │   │   └── ...
 │   └── projects/               # Project-specific (torale, bananagraph)
@@ -310,8 +302,11 @@ Common issues:
 **Q: Why Gateway API instead of Ingress?**
 A: Gateway API is the successor to Ingress, with better multi-tenancy, cross-namespace routing, and cost savings (shared Gateway IP).
 
-**Q: Can I use wildcard certificates?**
-A: No, Google-managed certificates don't support wildcards. Each subdomain needs explicit entry. For wildcards, migrate to cert-manager + Let's Encrypt.
+**Q: Do I need to update certificates for new subdomains?**
+A: No. Origin CA wildcard certs cover `*.domain.com` automatically. Just deploy an HTTPRoute.
+
+**Q: How does SSL work?**
+A: Cloudflare terminates client-facing SSL at the edge, then connects to GKE Gateway using the Origin CA cert (Full Strict mode). End-to-end encrypted.
 
 **Q: How do staging environments work?**
 A: HTTPRoutes in `clusterkit` namespace can reference services in `torale-staging` namespace via ReferenceGrants. Both share the same Gateway IP.
@@ -320,7 +315,7 @@ A: HTTPRoutes in `clusterkit` namespace can reference services in `torale-stagin
 A: Discounted pods (60-91% off) that can be preempted. Great for web apps where brief downtime is acceptable. Kubernetes auto-reschedules preempted pods.
 
 **Q: Can I deploy multiple domains?**
-A: Yes! ExternalDNS supports unlimited domains. Add each domain to the SSL certificate and create HTTPRoutes.
+A: Yes! Add the domain to `origin_ca_domains` and its zone ID to `cloudflare_zone_ids` in variables.tf, then `terraform apply`. Terraform generates the Origin CA cert automatically.
 
 **Q: How do I add a new application?**
 A: See [Application Integration Guide](docs/app-integration.md) for step-by-step instructions.
