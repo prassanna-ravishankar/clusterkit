@@ -95,3 +95,9 @@ variable "cloudsql_users" {
   }))
   default = {}
 }
+
+variable "prefect_db_password" {
+  description = "Password for the Prefect database user"
+  type        = string
+  sensitive   = true
+}

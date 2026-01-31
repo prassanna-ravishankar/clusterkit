@@ -62,6 +62,14 @@ module "logging" {
   exclude_gke_noise      = true
   info_log_sample_rate   = 0.1 # Keep only 10% of INFO logs
   health_check_patterns  = ["/health", "/healthz", "/ready", "GET /health"]
+
+  custom_exclusions = {
+    "exclude-external-dns-noise" = <<-EOT
+      resource.type="k8s_container"
+      resource.labels.namespace_name="external-dns"
+      severity="INFO"
+    EOT
+  }
 }
 
 # SSL Certificates for Gateway (Google-managed)
@@ -89,7 +97,7 @@ module "ssl_cert_bananagraph_prod" {
   source = "./modules/ssl-certificate"
 
   project_id       = var.project_id
-  certificate_name = "bananagraph-prod-cert"
+  certificate_name = "bananagraph-prod-cert-v3"
   domains          = ["bananagraph.com", "www.bananagraph.com", "api.bananagraph.com"]
 
   depends_on = [google_project_service.required_apis]
@@ -109,8 +117,8 @@ module "ssl_cert_repowire_prod" {
   source = "./modules/ssl-certificate"
 
   project_id       = var.project_id
-  certificate_name = "repowire-prod-cert"
-  domains          = ["repowire.io"]
+  certificate_name = "repowire-prod-cert-v3"
+  domains          = ["repowire.io", "relay.repowire.io"]
 
   depends_on = [google_project_service.required_apis]
 }
@@ -218,4 +226,24 @@ resource "google_service_account_iam_member" "workload_identity_bananagraph" {
   service_account_id = module.cloudsql_proxy_sa.service_account_name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[bananagraph/bananagraph-sa]"
+}
+
+resource "google_service_account_iam_member" "workload_identity_prefect" {
+  service_account_id = module.cloudsql_proxy_sa.service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[prefect/prefect-sa]"
+}
+
+# Prefect Server Database (shared workflow orchestration)
+resource "google_sql_database" "prefect" {
+  name     = "prefect"
+  instance = module.cloudsql.instance_name
+  project  = var.project_id
+}
+
+resource "google_sql_user" "prefect" {
+  name     = "prefect"
+  instance = module.cloudsql.instance_name
+  project  = var.project_id
+  password = var.prefect_db_password
 }

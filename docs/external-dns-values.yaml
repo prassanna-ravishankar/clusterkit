@@ -23,9 +23,16 @@ txtOwnerId: clusterkit
 
 # Cloudflare-specific settings
 cloudflare:
-  proxied: true  # Default to orange cloud (can override per-HTTPRoute with annotation)
-  apiToken: ""   # Set via secret
+  proxied: false  # Default to gray cloud (DNS only) - required for GCP-managed SSL certs
   dnsRecordsPerPage: 100
+
+# Use existing secret for Cloudflare API token
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: external-dns
+        key: cloudflare_api_token
 
 # Sync interval
 interval: 1m
