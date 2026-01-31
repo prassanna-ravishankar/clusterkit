@@ -6,8 +6,9 @@
 
 ClusterKit provides:
 - **Shared Gateway**: Load balancer at `34.149.49.202` (all apps use this IP)
-- **Automatic SSL**: Google-managed certificates for HTTPS
-- **Automatic DNS**: ExternalDNS creates Cloudflare DNS records from your manifests
+- **Automatic SSL**: Cloudflare Origin CA wildcard certs — new subdomains work instantly
+- **Automatic DNS**: ExternalDNS creates proxied Cloudflare DNS records from your HTTPRoutes
+- **Cloudflare CDN/WAF**: All traffic routed through Cloudflare by default
 - **Cross-namespace routing**: Production and staging can share the Gateway
 
 ## Required Resources
@@ -29,8 +30,7 @@ metadata:
   name: myapp-prod
   namespace: clusterkit  # MUST be 'clusterkit' (Gateway namespace)
   annotations:
-    # REQUIRED: Disable Cloudflare proxy for GCP SSL to work
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"  # Required for Cloudflare CDN/WAF
 spec:
   parentRefs:
   - name: clusterkit-gateway  # Shared Gateway
@@ -52,7 +52,7 @@ metadata:
   name: myapp-staging
   namespace: clusterkit  # HTTPRoute in clusterkit namespace
   annotations:
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
 spec:
   parentRefs:
   - name: clusterkit-gateway
@@ -70,9 +70,9 @@ spec:
 
 ### Before You Deploy
 
-1. **Request domain in SSL certificate**
-   - Contact ClusterKit team to add your subdomain to SSL certificate
-   - Wait for confirmation (cert provisioning takes ~15 min)
+1. **Confirm your domain has an Origin CA cert** in the Gateway
+   - Existing domains (torale.ai, bananagraph.com, a2aregistry.org, repowire.io) already have wildcard certs
+   - New domains: contact ClusterKit team to add domain to `origin_ca_domains` and run `terraform apply`
 
 ### Deploy Your App
 
@@ -96,9 +96,8 @@ spec:
    # Check ExternalDNS created the record
    kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns | grep myapp
 
-   # Verify DNS resolves
+   # Verify DNS resolves (returns Cloudflare IPs since records are proxied)
    dig +short myapp.yourdomain.com @1.1.1.1
-   # Should return: 34.149.49.202
    ```
 
 5. **Test your app**:
@@ -114,12 +113,9 @@ spec:
 - **Fix**: Ensure Gateway name is `clusterkit-gateway`
 
 ### SSL certificate warning
-- **Issue**: Browser shows "Not Secure" or cert warning
-- **Check**: Is your domain in the SSL certificate?
-  ```bash
-  gcloud compute ssl-certificates describe torale-prod-cert
-  ```
-- **Fix**: Contact ClusterKit team to add domain to certificate
+- **Issue**: Browser shows cert warning
+- **Check**: Is Cloudflare SSL mode set to "Full (Strict)" for the zone?
+- **Check**: Does the Gateway have an Origin CA cert for this domain?
 
 ### DNS not resolving
 - **Issue**: `dig myapp.yourdomain.com` returns nothing
@@ -127,13 +123,7 @@ spec:
   ```bash
   kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
   ```
-- **Fix**: Verify HTTPRoute has annotation: `cloudflare-proxied: "false"`
-
-### Cloudflare proxy enabled (orange cloud)
-- **Issue**: DNS resolves to Cloudflare IPs (104.x.x.x) instead of 34.149.49.202
-- **Check**: Cloudflare dashboard shows orange cloud icon
-- **Fix**: Ensure HTTPRoute has: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
-- **Fix**: Set Cloudflare DNS record to "DNS only" (gray cloud)
+- **Fix**: Verify HTTPRoute is accepted by the Gateway
 
 ## Need Help?
 
@@ -161,6 +151,7 @@ spec:
 - Gateway namespace: `clusterkit`
 - Gateway IP: `34.149.49.202`
 - HTTPRoute namespace: `clusterkit` (all apps, centralized routing)
-- Required annotation: `external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"`
+- SSL: Cloudflare Origin CA wildcard certs (Full Strict mode)
+- DNS: ExternalDNS creates proxied records from the `cloudflare-proxied: "true"` annotation
 
 For operational/maintenance questions, see `docs/maintenance.md`.

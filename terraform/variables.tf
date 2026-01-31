@@ -95,3 +95,23 @@ variable "cloudsql_users" {
   }))
   default = {}
 }
+
+variable "prefect_db_password" {
+  description = "Password for the Prefect database user"
+  type        = string
+  sensitive   = true
+}
+
+# Domains that get Cloudflare Origin CA wildcard certs on the Gateway
+variable "origin_ca_domains" {
+  description = "Domains to generate Cloudflare Origin CA wildcard certs for"
+  type        = list(string)
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io"]
+}
+
+# All Cloudflare-managed domains (superset of origin_ca_domains — includes dns.tf-only domains)
+variable "cloudflare_domains" {
+  description = "All domains managed in Cloudflare (zone IDs looked up automatically)"
+  type        = list(string)
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "feedforward.space"]
+}

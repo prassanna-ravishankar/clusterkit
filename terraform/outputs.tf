@@ -64,10 +64,8 @@ output "next_steps" {
   1. Configure kubectl: ${format("gcloud container clusters get-credentials %s --region %s --project %s", module.gke.cluster_name, var.region, var.project_id)}
   2. Verify cluster access: kubectl get nodes
   3. Note the static IP: ${module.networking.static_ip_address}
-  4. Install Knative Serving (Task 2)
-  5. Configure cert-manager and ExternalDNS with service accounts:
-     - ExternalDNS: ${module.iam.external_dns_service_account_email}
-     - cert-manager: ${module.iam.cert_manager_service_account_email}
+  4. Deploy ExternalDNS with Helm (see docs/external-dns-values.yaml)
+  5. Deploy your app (see docs/app-integration.md)
 
   EOT
 }

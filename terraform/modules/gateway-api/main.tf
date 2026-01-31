@@ -1,7 +1,7 @@
 /**
  * Gateway API Module
  *
- * Creates a shared GKE Gateway with Google-managed SSL certificates.
+ * Creates a shared GKE Gateway with Cloudflare Origin CA wildcard SSL certificates.
  * Application teams create HTTPRoutes in their namespaces that attach to this Gateway.
  */
 
