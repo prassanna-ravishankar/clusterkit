@@ -74,16 +74,16 @@ No infrastructure changes needed — wildcard Origin CA certs cover all subdomai
    - Edit existing token
    - Add new domain to "Zone Resources"
 
-2. **Add zone ID and domain** to `terraform/variables.tf`:
+2. **Add domain** to `terraform/variables.tf`:
    ```hcl
-   variable "cloudflare_zone_ids" {
-     default = {
-       # ... existing zones ...
-       "newdomain.com" = "YOUR_ZONE_ID"
-     }
+   variable "origin_ca_domains" {
+     default = [
+       # ... existing domains ...
+       "newdomain.com",
+     ]
    }
 
-   variable "origin_ca_domains" {
+   variable "cloudflare_domains" {
      default = [
        # ... existing domains ...
        "newdomain.com",
@@ -95,7 +95,7 @@ No infrastructure changes needed — wildcard Origin CA certs cover all subdomai
    ```bash
    terraform apply -var="project_id=baldmaninc"
    ```
-   This generates an Origin CA cert, adds it to the Gateway, and sets Full (Strict) SSL on the zone.
+   Terraform looks up the zone ID automatically, generates an Origin CA cert, adds it to the Gateway, and sets Full (Strict) SSL.
 
 6. **Add ReferenceGrant** if the app lives in a new namespace:
    ```hcl

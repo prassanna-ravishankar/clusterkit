@@ -209,7 +209,7 @@ Cloudflare Origin CA wildcard certificates:
 ### Cloudflare Integration
 
 - Cloudflare provider configured in `versions.tf`, reads `CLOUDFLARE_API_TOKEN` from environment
-- Zone IDs stored in `variables.tf` (`cloudflare_zone_ids` map)
+- Zone IDs looked up dynamically via `cloudflare_zones` data source (filtered by `cloudflare_domains` variable)
 - Domains managed: torale.ai, bananagraph.com, a2aregistry.org, repowire.io, feedforward.space
 - All gateway DNS records are **proxied** (orange cloud) — safe with Origin CA certs
 - ExternalDNS creates proxied A records from HTTPRoutes
@@ -278,8 +278,8 @@ See `docs/maintenance.md#adding-domains` for detailed instructions.
 
 **Quick steps:**
 1. Add domain to `origin_ca_domains` in `terraform/variables.tf`
-2. Add zone ID to `cloudflare_zone_ids` in `terraform/variables.tf`
-3. Apply Terraform (generates cert, adds to Gateway, sets Full Strict SSL)
+2. Add domain to `cloudflare_domains` in `terraform/variables.tf`
+3. Apply Terraform (looks up zone ID, generates cert, adds to Gateway, sets Full Strict SSL)
 4. Application team creates HTTPRoute
 
 ### Deploying New Application
@@ -335,7 +335,7 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 
 **Adding new domain (Origin CA cert):**
 - Add domain to `origin_ca_domains` list in `terraform/variables.tf`
-- Add zone ID to `cloudflare_zone_ids` in `terraform/variables.tf`
+- Add domain to `cloudflare_domains` in `terraform/variables.tf`
 - `terraform apply` — generates cert, adds to Gateway, sets Full Strict SSL
 
 **Updating ExternalDNS:**

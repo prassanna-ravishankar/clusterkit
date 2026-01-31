@@ -115,7 +115,7 @@ resource "google_compute_ssl_certificate" "origin_ca" {
 resource "cloudflare_zone_settings_override" "ssl_strict" {
   for_each = {
     for domain in var.origin_ca_domains :
-    domain => var.cloudflare_zone_ids[domain]
+    domain => local.cloudflare_zone_ids[domain]
   }
   zone_id = each.value
   settings {

@@ -315,7 +315,7 @@ A: HTTPRoutes in `clusterkit` namespace can reference services in `torale-stagin
 A: Discounted pods (60-91% off) that can be preempted. Great for web apps where brief downtime is acceptable. Kubernetes auto-reschedules preempted pods.
 
 **Q: Can I deploy multiple domains?**
-A: Yes! Add the domain to `origin_ca_domains` and its zone ID to `cloudflare_zone_ids` in variables.tf, then `terraform apply`. Terraform generates the Origin CA cert automatically.
+A: Yes! Add the domain to `origin_ca_domains` and `cloudflare_domains` in variables.tf, then `terraform apply`. Terraform looks up the zone ID and generates the Origin CA cert automatically.
 
 **Q: How do I add a new application?**
 A: See [Application Integration Guide](docs/app-integration.md) for step-by-step instructions.

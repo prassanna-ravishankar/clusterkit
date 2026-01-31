@@ -3,10 +3,26 @@
 # Gateway A records are managed by ExternalDNS (creates proxied records from HTTPRoutes).
 # This file manages: email (MX/DKIM/SPF), verification TXT, GitHub Pages, Cloudflare Pages.
 
+# Look up zone IDs dynamically from domain names
+data "cloudflare_zones" "managed" {
+  filter {
+    name   = ""
+    status = "active"
+  }
+}
+
+locals {
+  cloudflare_zone_ids = {
+    for zone in data.cloudflare_zones.managed.zones :
+    zone.name => zone.id
+    if contains(var.cloudflare_domains, zone.name)
+  }
+}
+
 # torale.ai
 module "dns_torale" {
   source  = "./modules/cloudflare-dns"
-  zone_id = var.cloudflare_zone_ids["torale.ai"]
+  zone_id = local.cloudflare_zone_ids["torale.ai"]
 
   records = [
     # Clerk authentication
@@ -37,7 +53,7 @@ module "dns_torale" {
 # a2aregistry.org (no gateway records — only GitHub Pages, verification)
 module "dns_a2aregistry" {
   source  = "./modules/cloudflare-dns"
-  zone_id = var.cloudflare_zone_ids["a2aregistry.org"]
+  zone_id = local.cloudflare_zone_ids["a2aregistry.org"]
 
   records = [
     # GitHub Pages (root domain - 4 A records)
@@ -59,7 +75,7 @@ module "dns_a2aregistry" {
 # feedforward.space
 module "dns_feedforward" {
   source  = "./modules/cloudflare-dns"
-  zone_id = var.cloudflare_zone_ids["feedforward.space"]
+  zone_id = local.cloudflare_zone_ids["feedforward.space"]
 
   records = [
     # Cloudflare Pages
