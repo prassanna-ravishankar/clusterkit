@@ -65,7 +65,7 @@ terraform import -var="project_id=baldmaninc" \
 
 ### Adding Subdomain to Existing Domain
 
-**Process:** Add to SSL cert → Create HTTPRoute → DNS auto-created
+**Process:** Add to SSL cert → Add DNS record → Apply Terraform → Create HTTPRoute
 
 1. **Update SSL certificate** (15 min downtime):
 
@@ -81,7 +81,17 @@ terraform import -var="project_id=baldmaninc" \
    }
    ```
 
-   Apply:
+2. **Add DNS record** in `terraform/dns.tf`:
+   ```hcl
+   module "dns_torale" {
+     records = [
+       # ... existing records ...
+       { name = "shop", content = local.gateway_ip },  # NEW
+     ]
+   }
+   ```
+
+3. **Apply Terraform**:
    ```bash
    cd terraform
    terraform apply -var="project_id=baldmaninc"
@@ -89,11 +99,10 @@ terraform import -var="project_id=baldmaninc" \
 
    **Note**: This recreates the certificate (~15 min provisioning time with brief downtime)
 
-2. **Application team creates HTTPRoute**:
+4. **Application team creates HTTPRoute**:
    - See `docs/app-integration.md` for template
-   - DNS is automatically created by ExternalDNS
 
-3. **Verify**:
+5. **Verify**:
    ```bash
    # Check cert provisioned
    gcloud compute ssl-certificates describe torale-prod-cert
@@ -104,19 +113,19 @@ terraform import -var="project_id=baldmaninc" \
 
 ### Adding Completely New Domain
 
-1. **Update Cloudflare API token**:
+1. **Update Cloudflare API token** (if needed):
    - Go to https://dash.cloudflare.com/profile/api-tokens
    - Edit existing token
    - Add new domain to "Zone Resources"
 
-2. **Update ExternalDNS secret** (if new token):
-   ```bash
-   kubectl create secret generic cloudflare-api-token \
-     --from-literal=apiToken=YOUR_NEW_TOKEN \
-     -n external-dns \
-     --dry-run=client -o yaml | kubectl apply -f -
-
-   kubectl rollout restart deployment external-dns -n external-dns
+2. **Add zone ID** to `terraform/variables.tf`:
+   ```hcl
+   variable "cloudflare_zone_ids" {
+     default = {
+       # ... existing zones ...
+       "newdomain.com" = "YOUR_ZONE_ID"
+     }
+   }
    ```
 
 3. **Create SSL certificate module** in `terraform/main.tf`:
@@ -141,7 +150,20 @@ terraform import -var="project_id=baldmaninc" \
    }
    ```
 
-5. **Apply Terraform**:
+5. **Add DNS records** in `terraform/dns.tf`:
+   ```hcl
+   module "dns_newdomain" {
+     source  = "./modules/cloudflare-dns"
+     zone_id = var.cloudflare_zone_ids["newdomain.com"]
+
+     records = [
+       { key = "root", name = "newdomain.com", content = local.gateway_ip },
+       { name = "api", content = local.gateway_ip },
+     ]
+   }
+   ```
+
+6. **Apply Terraform**:
    ```bash
    terraform apply -var="project_id=baldmaninc"
    ```
@@ -366,7 +388,7 @@ kubectl describe httproute <name> -n clusterkit
 # Check for:
 # - Accepted: True
 # - ResolvedRefs: True
-# - Namespace matches Gateway (must be 'torale')
+# - Namespace matches Gateway (must be 'clusterkit')
 ```
 
 **DNS not resolving**:
@@ -569,7 +591,7 @@ If GKE cluster is lost:
 - **Project**: baldmaninc
 - **Region**: us-central1
 - **Cluster**: clusterkit
-- **Gateway**: clusterkit-gateway (namespace: torale)
+- **Gateway**: clusterkit-gateway (namespace: clusterkit)
 - **Gateway IP**: 34.149.49.202
 - **Static IP name**: clusterkit-ingress-ip
 - **ExternalDNS namespace**: external-dns

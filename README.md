@@ -268,18 +268,18 @@ dig +short myapp.yourdomain.com @1.1.1.1
 See [Maintenance Guide](docs/maintenance.md#adding-domains) for detailed instructions.
 
 Quick steps:
-1. Add domain to SSL certificate in Terraform
-2. Apply Terraform (15 min for cert provisioning)
-3. Create HTTPRoute
-4. DNS auto-created by ExternalDNS
+1. Add domain to SSL certificate in `terraform/main.tf`
+2. Add DNS record in `terraform/dns.tf`
+3. Apply Terraform (15 min for cert provisioning)
+4. Create HTTPRoute
 
 ## Troubleshooting
 
 See [Maintenance Guide](docs/maintenance.md#troubleshooting) for comprehensive troubleshooting.
 
 Common issues:
-- **HTTPRoute not attaching**: Check namespace is `torale`
-- **DNS not resolving**: Check ExternalDNS logs
+- **HTTPRoute not attaching**: Check namespace is `clusterkit`
+- **DNS not resolving**: Check ExternalDNS logs and `terraform/dns.tf`
 - **SSL warning**: Ensure domain is in SSL certificate
 - **Cloudflare proxy**: Ensure annotation `cloudflare-proxied: "false"`
 
@@ -288,17 +288,20 @@ Common issues:
 ```
 .
 ├── terraform/                  # Infrastructure as Code
-│   ├── main.tf                 # Root config (cluster, Gateway, SSL)
+│   ├── main.tf                 # Root config (cluster, Gateway, SSL, Cloud SQL)
+│   ├── dns.tf                  # Cloudflare DNS records (all domains)
 │   ├── modules/                # Reusable modules
 │   │   ├── gke/                # GKE Autopilot cluster
 │   │   ├── gateway-api/        # Gateway + ReferenceGrants
 │   │   ├── ssl-certificate/    # Google-managed SSL
+│   │   ├── cloudflare-dns/     # Cloudflare DNS records
 │   │   └── ...
-│   └── projects/torale/        # Project-specific (Cloud SQL, etc.)
+│   └── projects/               # Project-specific (torale, bananagraph)
 ├── docs/
 │   ├── app-integration.md      # For app developers
 │   ├── maintenance.md          # For operators
-│   └── external-dns-values.yaml # Helm values
+│   ├── external-dns-values.yaml # Helm values
+│   └── prefect-values.yaml     # Prefect Server Helm values
 └── CLAUDE.md                   # AI assistant context
 ```
 
@@ -311,7 +314,7 @@ A: Gateway API is the successor to Ingress, with better multi-tenancy, cross-nam
 A: No, Google-managed certificates don't support wildcards. Each subdomain needs explicit entry. For wildcards, migrate to cert-manager + Let's Encrypt.
 
 **Q: How do staging environments work?**
-A: HTTPRoutes in `torale` namespace can reference services in `torale-staging` namespace via ReferenceGrants. Both share the same Gateway IP.
+A: HTTPRoutes in `clusterkit` namespace can reference services in `torale-staging` namespace via ReferenceGrants. Both share the same Gateway IP.
 
 **Q: What are Spot Pods?**
 A: Discounted pods (60-91% off) that can be preempted. Great for web apps where brief downtime is acceptable. Kubernetes auto-reschedules preempted pods.

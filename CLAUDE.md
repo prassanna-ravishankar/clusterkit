@@ -29,7 +29,9 @@ clusterkit namespace (Gateway + all HTTPRoutes)
 ├── HTTPRoute (docs.torale.ai) → Service (torale/torale-docs)
 ├── HTTPRoute (staging.torale.ai) → Service (torale-staging/torale-frontend)
 ├── HTTPRoute (bananagraph.com) → Service (bananagraph/bananagraph-service)
-└── HTTPRoute (beta.a2aregistry.org) → Service (a2aregistry/a2aregistry-api)
+├── HTTPRoute (beta.a2aregistry.org) → Service (a2aregistry/a2aregistry-api)
+├── HTTPRoute (repowire.io) → Service (repowire/repowire-service)
+└── HTTPRoute (relay.repowire.io) → Service (repowire/repowire-relay)
 ```
 
 **Benefits:**
@@ -44,10 +46,12 @@ clusterkit namespace (Gateway + all HTTPRoutes)
 - GKE Autopilot cluster
 - Gateway API (Gateway, SSL certificates, ReferenceGrants)
 - Static IP (`clusterkit-ingress-ip`)
+- Cloudflare DNS records for all domains (`dns.tf`) — single source of truth
 - Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
-- Workload Identity bindings for database access
+- Workload Identity bindings for database access (torale, bananagraph, a2aregistry, prefect)
+- Prefect database and user
 - IAM (service accounts with Workload Identity)
-- Logging optimization (project-level)
+- Logging optimization (project-level, includes ExternalDNS INFO exclusion)
 
 **2. Project-Specific Terraform** (`terraform/projects/<project>/`):
 - Project-specific databases and users (created in shared instance)
@@ -62,10 +66,11 @@ Reusable modules in `terraform/modules/`:
 - `gke/` - GKE Autopilot cluster with configurable logging/monitoring
 - `gateway-api/` - Gateway with SSL certs and ReferenceGrants
 - `ssl-certificate/` - Google-managed SSL certificates
+- `cloudflare-dns/` - Cloudflare DNS record management
 - `httproute/` - HTTPRoute template (for application use)
 - `networking/` - Static IP addresses
 - `iam/` - Service accounts with Workload Identity
-- `logging/` - Cost-optimized Cloud Logging
+- `logging/` - Cost-optimized Cloud Logging (with custom exclusion support)
 - `cloudsql-instance/`, `cloudsql-proxy-sa/` - PostgreSQL instances
 - `static-ip/` - Global static IP addresses
 
@@ -138,6 +143,7 @@ tolerations:
 - Log retention: 7 days (down from 30)
 - Health check exclusion (~24% of logs)
 - GKE noise exclusion (gcfs-snapshotter, gcfsd, container-runtime)
+- ExternalDNS INFO log exclusion (custom exclusion)
 - INFO log sampling at 10% (ERROR/WARNING kept at 100%)
 
 **GKE Monitoring Optimizations** (`terraform/modules/gke/`):
@@ -182,11 +188,14 @@ Google-managed certificates:
 
 ### Cloudflare Integration
 
-- ExternalDNS automatically creates/updates DNS records from HTTPRoute hostnames
-- Requires Cloudflare API token with DNS edit permissions
-- DNS records MUST be "DNS only" (gray cloud), not "Proxied" (orange cloud)
+- DNS records managed via Terraform (`terraform/dns.tf`) — single source of truth for all domains
+- Cloudflare provider configured in `versions.tf`, reads `CLOUDFLARE_API_TOKEN` from environment
+- Zone IDs stored in `variables.tf` (`cloudflare_zone_ids` map)
+- Domains managed: torale.ai, bananagraph.com, a2aregistry.org, repowire.io, feedforward.space
+- ExternalDNS watches HTTPRoutes for gateway-related A records (TXT ownership records not in Terraform)
+- DNS records MUST be "DNS only" (gray cloud), not "Proxied" (orange cloud) for gateway domains
 - Orange cloud = Cloudflare terminates SSL → breaks GCP-managed certificates
-- All domains point to shared Gateway IP (34.149.49.202)
+- All gateway domains point to shared Gateway IP (34.149.49.202)
 
 ## Development Commands
 
@@ -239,9 +248,9 @@ See `docs/maintenance.md#adding-domains` for detailed instructions.
 
 **Quick steps:**
 1. Add domain to SSL cert in `terraform/main.tf`
-2. Apply Terraform (15 min for cert provisioning)
-3. Application team creates HTTPRoute
-4. DNS auto-created by ExternalDNS
+2. Add DNS record in `terraform/dns.tf`
+3. Apply Terraform (15 min for cert provisioning)
+4. Application team creates HTTPRoute
 
 ### Deploying New Application
 
@@ -275,6 +284,7 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **docs/app-integration.md** - 1-page guide for application developers
 - **docs/maintenance.md** - Comprehensive operator guide
 - **docs/external-dns-values.yaml** - Helm values for ExternalDNS
+- **docs/prefect-values.yaml** - Helm values for Prefect Server
 
 ## Project-Specific Notes
 
@@ -285,8 +295,9 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **Domains:** Managed via Cloudflare
 - **Gateway:** clusterkit-gateway (namespace: clusterkit, IP: 34.149.49.202)
 - **HTTPRoutes:** All routes in `clusterkit` namespace with cross-namespace service refs
-- **App Namespaces:** torale, torale-staging, bananagraph, a2aregistry, repowire
-- **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled)
+- **App Namespaces:** torale, torale-staging, bananagraph, a2aregistry, repowire, prefect
+- **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled) — shared by torale, bananagraph, a2aregistry, prefect
+- **DNS:** All domains managed via Terraform Cloudflare provider (`terraform/dns.tf`)
 - **Cost Savings:** £5/month saved by using single Gateway IP instead of 2 separate IPs
 
 ### Critical Operations
@@ -294,6 +305,7 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 **Adding domain to SSL certificate:**
 - Edit `terraform/main.tf` SSL cert module
 - Add domain to `domains` list
+- Add DNS record in `terraform/dns.tf`
 - `terraform apply` (recreates cert, ~15 min downtime)
 
 **Updating ExternalDNS:**
