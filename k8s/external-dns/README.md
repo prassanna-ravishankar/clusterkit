@@ -378,8 +378,7 @@ Cloudflare API rate limits:
 
 1. Deploy test service and verify DNS creation
 2. Combine with cert-manager for automatic TLS
-3. Build ClusterKit CLI (Task 6) to automate this flow
-4. Deploy production applications with automatic DNS+TLS
+3. Deploy production applications with automatic DNS+TLS
 
 ## Resources
 

@@ -35,28 +35,9 @@ A Go-based REST API demonstrating:
 
 ### Prerequisites
 
-- ClusterKit CLI installed
 - Kubernetes cluster with ClusterKit bootstrapped
 - kubectl configured
 - Domain configured in Cloudflare
-
-### Deploy Using ClusterKit CLI
-
-```bash
-# Deploy the static site
-clusterkit create static-site \
-  --image=ghcr.io/clusterkit/clusterkit/static-site:latest \
-  --port=80 \
-  --min-scale=0 \
-  --max-scale=10
-
-# Deploy the API
-clusterkit create api \
-  --image=ghcr.io/clusterkit/clusterkit/api:latest \
-  --port=8080 \
-  --min-scale=0 \
-  --max-scale=20
-```
 
 ### Deploy Using Kubectl
 
@@ -146,11 +127,6 @@ kubectl get pods
 ### View Logs
 
 ```bash
-# ClusterKit CLI
-clusterkit logs static-site --follow
-clusterkit logs api --follow
-
-# kubectl
 kubectl logs -l serving.knative.dev/service=static-site -f
 kubectl logs -l serving.knative.dev/service=api -f
 ```
@@ -158,11 +134,6 @@ kubectl logs -l serving.knative.dev/service=api -f
 ### Check Service Status
 
 ```bash
-# ClusterKit CLI
-clusterkit status static-site
-clusterkit status api
-
-# kubectl
 kubectl describe ksvc static-site
 kubectl describe ksvc api
 ```
@@ -283,11 +254,6 @@ kubectl top pods
 ## Clean Up
 
 ```bash
-# Using ClusterKit CLI
-clusterkit delete static-site
-clusterkit delete api
-
-# Using kubectl
 kubectl delete -f manifests/
 
 # Verify deletion
@@ -297,10 +263,8 @@ kubectl get ksvc
 ## Next Steps
 
 1. **Customize Applications**: Modify the source code to fit your needs
-2. **Add Databases**: Use `clusterkit db create` to add PostgreSQL
-3. **Configure Monitoring**: Set up Prometheus and Grafana
-4. **Add Custom Domains**: Use `clusterkit domain add`
-5. **Set Up CI/CD**: Connect your own GitHub repository
+2. **Configure Monitoring**: Set up Prometheus and Grafana
+3. **Set Up CI/CD**: Connect your own GitHub repository
 
 ## Learn More
 
@@ -315,4 +279,3 @@ kubectl get ksvc
 For issues or questions:
 - Check [Troubleshooting Guide](../docs/TROUBLESHOOTING.md)
 - Open an issue on [GitHub](https://github.com/clusterkit/clusterkit/issues)
-- Review [ClusterKit CLI Reference](../docs/CLI.md)

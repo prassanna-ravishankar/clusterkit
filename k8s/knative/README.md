@@ -221,7 +221,6 @@ After Knative installation:
 1. **Task 3**: Configure NGINX Ingress to route to Kourier
 2. **Task 4**: Setup cert-manager for automatic TLS
 3. **Task 5**: Configure ExternalDNS for automatic DNS
-4. **Task 7**: Build ClusterKit CLI to create Knative Services
 
 ## Resources
 

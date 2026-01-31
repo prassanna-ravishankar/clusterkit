@@ -119,7 +119,6 @@ After infrastructure deployment:
 1. Install Knative Serving (Task 2)
 2. Configure cert-manager (Task 4)
 3. Setup ExternalDNS with Cloudflare (Task 5)
-4. Build the ClusterKit CLI (Task 6)
 
 ## Cleanup
 
