@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 3.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -27,3 +31,7 @@ provider "kubernetes" {
 }
 
 data "google_client_config" "default" {}
+
+provider "cloudflare" {
+  # Reads CLOUDFLARE_API_TOKEN from environment (via direnv + .env)
+}
