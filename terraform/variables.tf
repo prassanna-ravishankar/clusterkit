@@ -96,12 +96,6 @@ variable "cloudsql_users" {
   default = {}
 }
 
-variable "prefect_db_password" {
-  description = "Password for the Prefect database user"
-  type        = string
-  sensitive   = true
-}
-
 # Domains that get Cloudflare Origin CA wildcard certs on the Gateway
 variable "origin_ca_domains" {
   description = "Domains to generate Cloudflare Origin CA wildcard certs for"

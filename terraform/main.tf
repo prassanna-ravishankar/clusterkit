@@ -23,7 +23,7 @@ module "gke" {
 
   # Cost optimization for side project
   enable_workload_logging = true                                       # Keep app logs for debugging
-  monitoring_components   = ["SYSTEM_COMPONENTS", "POD", "DEPLOYMENT"] # Minimal monitoring
+  monitoring_components   = ["SYSTEM_COMPONENTS", "POD"]
   # Note: Managed Prometheus cannot be disabled in Autopilot (auto-enabled)
 
   depends_on = [google_project_service.required_apis]
@@ -116,6 +116,7 @@ resource "cloudflare_zone_settings_override" "ssl_strict" {
   for_each = {
     for domain in var.origin_ca_domains :
     domain => local.cloudflare_zone_ids[domain]
+    if contains(keys(local.cloudflare_zone_ids), domain)
   }
   zone_id = each.value
   settings {
@@ -220,22 +221,3 @@ resource "google_service_account_iam_member" "workload_identity_bananagraph" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[bananagraph/bananagraph-sa]"
 }
 
-resource "google_service_account_iam_member" "workload_identity_prefect" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[prefect/prefect-sa]"
-}
-
-# Prefect Server Database (shared workflow orchestration)
-resource "google_sql_database" "prefect" {
-  name     = "prefect"
-  instance = module.cloudsql.instance_name
-  project  = var.project_id
-}
-
-resource "google_sql_user" "prefect" {
-  name     = "prefect"
-  instance = module.cloudsql.instance_name
-  project  = var.project_id
-  password = var.prefect_db_password
-}

@@ -34,7 +34,7 @@ module "dns_torale" {
 
     # Google Workspace
     { name = "app", content = "ghs.googlehosted.com", type = "CNAME" },
-    { key = "mx-google", name = "torale.ai", content = "smtp.google.com", type = "MX", priority = 1 },
+    # mx-google MX record managed by Cloudflare Email Routing — not Terraform.
 
     # Resend (transactional email via SES)
     { key = "mx-ses", name = "send", content = "feedback-smtp.eu-west-1.amazonses.com", type = "MX", priority = 10 },
@@ -50,25 +50,18 @@ module "dns_torale" {
   ]
 }
 
-# a2aregistry.org (no gateway records — only GitHub Pages, verification)
+# a2aregistry.org (gateway records managed by ExternalDNS, only verification TXT here)
 module "dns_a2aregistry" {
   source  = "./modules/cloudflare-dns"
   zone_id = local.cloudflare_zone_ids["a2aregistry.org"]
 
   records = [
-    # GitHub Pages (root domain - 4 A records)
-    { key = "gh-pages-1", name = "a2aregistry.org", content = "185.199.108.153", proxied = true },
-    { key = "gh-pages-2", name = "a2aregistry.org", content = "185.199.109.153", proxied = true },
-    { key = "gh-pages-3", name = "a2aregistry.org", content = "185.199.110.153", proxied = true },
-    { key = "gh-pages-4", name = "a2aregistry.org", content = "185.199.111.153", proxied = true },
-    { name = "www", content = "prassanna-ravishankar.github.io", type = "CNAME", proxied = true },
-
     # Email Routing MX/DKIM records are managed by Cloudflare Email Routing — not Terraform.
     # Workers hello AAAA record is read-only — not Terraform.
+    # Gateway A records (a2aregistry.org, www.a2aregistry.org) managed by ExternalDNS via HTTPRoute.
 
     # Verification TXT records
     { key = "txt-google-verify", name = "a2aregistry.org", content = "google-site-verification=mEA3Y3qH_-_X9XAKFblpLkMBLS80K8k3R0ELczDZmRo", type = "TXT" },
-    { key = "txt-gh-pages", name = "_github-pages-challenge-prassanna-ravishankar", content = "7f19b004f93b6b454fd825b436f33b", type = "TXT" },
   ]
 }
 

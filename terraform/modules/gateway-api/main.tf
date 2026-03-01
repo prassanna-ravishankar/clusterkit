@@ -6,6 +6,10 @@
  */
 
 resource "kubernetes_manifest" "gateway" {
+  field_manager {
+    force_conflicts = true
+  }
+
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "Gateway"
