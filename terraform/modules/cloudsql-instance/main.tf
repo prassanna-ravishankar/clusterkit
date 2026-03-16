@@ -13,6 +13,14 @@ resource "google_sql_database_instance" "main" {
     ip_configuration {
       ipv4_enabled    = var.ipv4_enabled
       private_network = var.private_network
+
+      dynamic "authorized_networks" {
+        for_each = var.authorized_networks
+        content {
+          name  = authorized_networks.value.name
+          value = authorized_networks.value.cidr
+        }
+      }
     }
 
     backup_configuration {

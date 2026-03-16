@@ -56,6 +56,14 @@ variable "private_network" {
   default     = null
 }
 
+variable "authorized_networks" {
+  description = "CIDRs allowed to connect when ipv4_enabled is true (empty = no public access)"
+  type = list(object({
+    name = string
+    cidr = string
+  }))
+  default = []
+}
 
 variable "backup_enabled" {
   description = "Enable automated backups"
