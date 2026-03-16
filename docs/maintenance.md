@@ -364,8 +364,11 @@ kubectl get httproute <name> -n clusterkit -o yaml | grep -A 5 backendRefs
 
 ### Backup Critical Resources
 
-**Terraform state** (already backed up to GCS or local):
+**Terraform state** (stored in GCS with versioning — auto-backed up):
 ```bash
+# State is in gs://tf-state-baldmaninc/clusterkit/
+# GCS versioning keeps history of all state changes
+# To manually backup:
 cd terraform
 terraform state pull > backup-state.json
 ```
@@ -418,6 +421,7 @@ dig +short torale.ai @1.1.1.1
 - **SSL**: Cloudflare Origin CA wildcard certs (Full Strict mode)
 - **ExternalDNS namespace**: external-dns
 - **DNS split**: ExternalDNS owns gateway A records, Terraform owns email/verification/Pages records
-- **Terraform states**:
-  - Root: `terraform/terraform.tfstate`
-  - Torale: `terraform/projects/torale/terraform.tfstate`
+- **Terraform state**: GCS bucket `gs://tf-state-baldmaninc/clusterkit/`
+  - Root: `clusterkit/root`
+  - Torale: `clusterkit/projects/torale`
+  - Bananagraph: `clusterkit/projects/bananagraph`

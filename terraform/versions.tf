@@ -1,6 +1,13 @@
 terraform {
   required_version = ">= 1.6.0"
 
+  # Remote state in GCS — create bucket first with scripts/bootstrap-backend.sh
+  # Then run: terraform init -migrate-state
+  backend "gcs" {
+    bucket = "tf-state-baldmaninc"
+    prefix = "clusterkit/root"
+  }
+
   required_providers {
     google = {
       source  = "hashicorp/google"
