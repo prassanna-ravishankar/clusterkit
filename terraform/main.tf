@@ -5,6 +5,8 @@ resource "google_project_service" "required_apis" {
     "compute.googleapis.com",              # Compute Engine (for static IPs)
     "iam.googleapis.com",                  # IAM
     "cloudresourcemanager.googleapis.com", # Resource Manager
+    "sqladmin.googleapis.com",             # Cloud SQL Admin
+    "artifactregistry.googleapis.com",     # Artifact Registry
   ])
 
   service            = each.value

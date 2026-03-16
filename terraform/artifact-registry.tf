@@ -6,6 +6,7 @@ resource "google_artifact_registry_repository" "gcr" {
   location      = "us"
   format        = "DOCKER"
   project       = var.project_id
+  description   = "Shared container image repository for ClusterKit applications"
 
   # Cleanup policy: Keep recent images, delete old ones to save storage costs
   cleanup_policies {
