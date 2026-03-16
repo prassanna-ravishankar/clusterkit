@@ -119,11 +119,7 @@ variable "cloudsql_workload_identity_bindings" {
 variable "cloudflare_domain_settings" {
   description = "Per-domain Cloudflare zone setting overrides"
   type        = map(map(string))
-  default = {
-    "repowire.io" = {
-      http3 = "off" # Disable QUIC — causes ERR_QUIC_PROTOCOL_ERROR on SSE
-    }
-  }
+  default = {}
 }
 
 # Domains that get Cloudflare Origin CA wildcard certs on the Gateway
