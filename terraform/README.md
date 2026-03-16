@@ -6,10 +6,11 @@ Terraform configuration for ClusterKit on Google Cloud Platform with Cloudflare.
 
 - **GKE Autopilot Cluster**: Managed Kubernetes with automatic node management
 - **Gateway API**: Shared Gateway with Cloudflare Origin CA wildcard SSL certs
-- **Cloudflare Zone Settings**: Full (Strict) SSL per zone
+- **Cloudflare Zone Settings**: Full (Strict) SSL, HTTPS enforcement, TLS 1.3
 - **Static IP Address**: Global static IP for the Gateway
 - **Cloud SQL**: Shared PostgreSQL instance (db-f1-micro)
-- **IAM Service Accounts**: ExternalDNS (with Workload Identity)
+- **Cloud SQL Proxy SA**: Workload Identity bindings for database access
+- **Artifact Registry**: Shared container image repository with cleanup policies
 - **Logging Optimization**: 7-day retention, health check exclusions, INFO sampling
 - **DNS Records** (`dns.tf`): Email, verification, GitHub Pages (not gateway A records)
 
@@ -34,6 +35,7 @@ terraform apply
 terraform/
 ├── main.tf              # Root config (cluster, Gateway, Origin CA certs, Cloud SQL)
 ├── dns.tf               # Cloudflare DNS records (email, verification, Pages)
+├── artifact-registry.tf # Container image repository
 ├── variables.tf         # Input variables
 ├── outputs.tf           # Output values
 ├── versions.tf          # Terraform and provider versions
@@ -41,7 +43,6 @@ terraform/
 │   ├── gke/             # GKE Autopilot cluster
 │   ├── gateway-api/     # Gateway + ReferenceGrants
 │   ├── networking/      # Static IP
-│   ├── iam/             # Service accounts + Workload Identity
 │   ├── logging/         # Cost-optimized Cloud Logging
 │   ├── cloudflare-dns/  # Cloudflare DNS record management
 │   ├── httproute/       # HTTPRoute template (for app use)
@@ -53,6 +54,5 @@ terraform/
 ## Key Outputs
 
 - `static_ip_address`: Gateway IP (configure in Cloudflare)
-- `external_dns_service_account_email`: For ExternalDNS Helm chart
 - `kubectl_connection_command`: Command to connect kubectl
 - `cloudsql_connection_name`: Cloud SQL connection string for proxy

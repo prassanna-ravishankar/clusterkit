@@ -63,7 +63,6 @@ clusterkit namespace (Gateway + all HTTPRoutes)
 - Non-gateway DNS records (`dns.tf`) — email, verification, GitHub Pages only
 - Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
 - Workload Identity bindings for database access (torale, bananagraph, a2aregistry)
-- Prefect database and user
 - Logging optimization (project-level, includes ExternalDNS INFO exclusion)
 
 **2. Project-Specific Terraform** (`terraform/projects/<project>/`):
