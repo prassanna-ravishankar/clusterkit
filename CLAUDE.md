@@ -323,6 +323,7 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **App Namespaces:** torale, torale-staging, bananagraph, a2aregistry, repowire
 - **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled) — shared by torale, bananagraph, a2aregistry
 - **DNS split:** ExternalDNS owns gateway A records (proxied), Terraform owns email/verification/Pages
+- **Terraform State:** GCS remote backend (`gs://tf-state-baldmaninc/clusterkit/`) with versioning and locking
 - **Cost Savings:** £5/month saved by using single Gateway IP instead of 2 separate IPs
 
 ### Critical Operations
