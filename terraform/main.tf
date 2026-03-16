@@ -5,7 +5,6 @@ resource "google_project_service" "required_apis" {
     "compute.googleapis.com",              # Compute Engine (for static IPs)
     "iam.googleapis.com",                  # IAM
     "cloudresourcemanager.googleapis.com", # Resource Manager
-    "dns.googleapis.com",                  # Cloud DNS (for ExternalDNS)
   ])
 
   service            = each.value
@@ -38,16 +37,6 @@ module "networking" {
   static_ip_name = var.static_ip_name
 
   depends_on = [google_project_service.required_apis]
-}
-
-# IAM Service Account for ExternalDNS
-module "iam" {
-  source = "./modules/iam"
-
-  project_id   = var.project_id
-  cluster_name = var.cluster_name
-
-  depends_on = [module.gke]
 }
 
 # Logging Optimization (Side Project Mode)

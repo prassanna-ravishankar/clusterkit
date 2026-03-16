@@ -37,12 +37,6 @@ output "static_ip_name" {
   value       = module.networking.static_ip_name
 }
 
-# IAM Outputs
-output "external_dns_service_account_email" {
-  description = "Email of the ExternalDNS service account"
-  value       = module.iam.external_dns_service_account_email
-}
-
 # Connection Instructions
 output "kubectl_connection_command" {
   description = "Command to configure kubectl for cluster access"

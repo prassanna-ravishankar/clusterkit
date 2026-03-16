@@ -64,7 +64,6 @@ clusterkit namespace (Gateway + all HTTPRoutes)
 - Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
 - Workload Identity bindings for database access (torale, bananagraph, a2aregistry)
 - Prefect database and user
-- IAM (service accounts with Workload Identity)
 - Logging optimization (project-level, includes ExternalDNS INFO exclusion)
 
 **2. Project-Specific Terraform** (`terraform/projects/<project>/`):
@@ -87,7 +86,6 @@ Reusable modules in `terraform/modules/`:
 - `cloudflare-dns/` - Cloudflare DNS record management
 - `httproute/` - HTTPRoute template (for application use)
 - `networking/` - Static IP addresses
-- `iam/` - Service accounts with Workload Identity
 - `logging/` - Cost-optimized Cloud Logging (with custom exclusion support)
 - `cloudsql-instance/`, `cloudsql-proxy-sa/` - PostgreSQL instances
 

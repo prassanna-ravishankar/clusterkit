@@ -25,7 +25,6 @@ ClusterKit uses two separate Terraform states:
 - Cloudflare zone settings (Full Strict SSL)
 - Static IPs
 - Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
-- IAM (service accounts)
 - Logging configuration
 
 **Project Terraform** (`terraform/projects/<project>/`):
