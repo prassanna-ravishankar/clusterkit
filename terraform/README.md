@@ -21,6 +21,18 @@ Terraform configuration for ClusterKit on Google Cloud Platform with Cloudflare.
 3. **Cloudflare API token** with Zone DNS Edit, Zone Zone Read, SSL and Certificates Edit, Zone Settings Edit
 4. **GCP Project** with billing enabled
 
+## State Backend
+
+Terraform state is stored in GCS with versioning and locking:
+
+| State | GCS prefix |
+|-------|------------|
+| Root | `gs://tf-state-baldmaninc/clusterkit/root/` |
+| Torale | `gs://tf-state-baldmaninc/clusterkit/projects/torale/` |
+| Bananagraph | `gs://tf-state-baldmaninc/clusterkit/projects/bananagraph/` |
+
+To set up the backend from scratch: `PROJECT_ID=baldmaninc ./scripts/bootstrap-backend.sh`
+
 ## Quick Start
 
 ```bash

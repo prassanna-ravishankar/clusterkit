@@ -127,6 +127,9 @@ docs/
 ├── app-integration.md      # Guide for app developers
 ├── maintenance.md          # Operator guide (adding domains, troubleshooting)
 └── external-dns-values.yaml
+scripts/
+├── health-check.sh         # Validate Gateway, routes, DNS, SSL, Cloud SQL
+└── bootstrap-backend.sh    # Create GCS bucket for Terraform remote state
 ```
 
 ## Documentation

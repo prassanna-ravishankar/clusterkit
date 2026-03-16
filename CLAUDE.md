@@ -309,6 +309,8 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **docs/app-integration.md** - 1-page guide for application developers
 - **docs/maintenance.md** - Comprehensive operator guide
 - **docs/external-dns-values.yaml** - Helm values for ExternalDNS
+- **scripts/health-check.sh** - Validate Gateway, HTTPRoutes, DNS, SSL, ExternalDNS, Cloud SQL
+- **scripts/bootstrap-backend.sh** - Create GCS bucket for Terraform remote state
 
 ## Project-Specific Notes
 
