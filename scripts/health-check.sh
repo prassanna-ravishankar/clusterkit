@@ -118,7 +118,24 @@ else
   fail "ExternalDNS pods not found"
 fi
 
-# 7. DNS spot checks (pick hostnames from HTTPRoutes)
+# 7. Cloud SQL
+echo ""
+echo "--- Cloud SQL ---"
+INSTANCE_STATUS=$(gcloud sql instances describe clusterkit-db --format='value(state)' 2>/dev/null || echo "")
+if [ "$INSTANCE_STATUS" = "RUNNABLE" ]; then
+  pass "Cloud SQL instance: RUNNABLE"
+  if [ "$VERBOSE" = "--verbose" ]; then
+    DB_VERSION=$(gcloud sql instances describe clusterkit-db --format='value(databaseVersion)' 2>/dev/null)
+    DB_TIER=$(gcloud sql instances describe clusterkit-db --format='value(settings.tier)' 2>/dev/null)
+    echo "    Version: $DB_VERSION, Tier: $DB_TIER"
+  fi
+elif [ -z "$INSTANCE_STATUS" ]; then
+  fail "Cloud SQL instance clusterkit-db not found"
+else
+  fail "Cloud SQL instance state: $INSTANCE_STATUS"
+fi
+
+# 8. DNS spot checks (pick hostnames from HTTPRoutes)
 echo ""
 echo "--- DNS Resolution ---"
 HOSTNAMES=$(echo "$ROUTES" | jq -r '.items[].spec.hostnames[]?' 2>/dev/null | head -5)
