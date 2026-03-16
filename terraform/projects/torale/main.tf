@@ -31,7 +31,7 @@ resource "google_sql_database" "databases" {
 
 # Create torale-specific database users
 resource "google_sql_user" "users" {
-  for_each = var.database_users
+  for_each = nonsensitive(var.database_users)
 
   name     = each.key
   instance = data.google_sql_database_instance.clusterkit_db.name

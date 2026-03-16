@@ -122,5 +122,6 @@ variable "users" {
   type = map(object({
     password = string
   }))
-  default = {}
+  default   = {}
+  sensitive = true
 }

@@ -87,7 +87,8 @@ variable "cloudsql_users" {
   type = map(object({
     password = string
   }))
-  default = {}
+  default   = {}
+  sensitive = true
 }
 
 # Domains that get Cloudflare Origin CA wildcard certs on the Gateway
