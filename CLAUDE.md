@@ -62,7 +62,7 @@ clusterkit namespace (Gateway + all HTTPRoutes)
 - Static IP (`clusterkit-ingress-ip`)
 - Non-gateway DNS records (`dns.tf`) — email, verification, GitHub Pages only
 - Shared Cloud SQL instance (`clusterkit-db`) and proxy service account
-- Workload Identity bindings for database access (torale, bananagraph, a2aregistry, prefect)
+- Workload Identity bindings for database access (torale, bananagraph, a2aregistry)
 - Prefect database and user
 - IAM (service accounts with Workload Identity)
 - Logging optimization (project-level, includes ExternalDNS INFO exclusion)
@@ -90,7 +90,6 @@ Reusable modules in `terraform/modules/`:
 - `iam/` - Service accounts with Workload Identity
 - `logging/` - Cost-optimized Cloud Logging (with custom exclusion support)
 - `cloudsql-instance/`, `cloudsql-proxy-sa/` - PostgreSQL instances
-- `static-ip/` - Global static IP addresses
 
 ## Key Patterns and Conventions
 
@@ -313,7 +312,6 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **docs/app-integration.md** - 1-page guide for application developers
 - **docs/maintenance.md** - Comprehensive operator guide
 - **docs/external-dns-values.yaml** - Helm values for ExternalDNS
-- **docs/prefect-values.yaml** - Helm values for Prefect Server
 
 ## Project-Specific Notes
 
@@ -325,8 +323,8 @@ See `docs/maintenance.md#troubleshooting` for comprehensive guide.
 - **Gateway:** clusterkit-gateway (namespace: clusterkit, IP: 34.149.49.202)
 - **SSL:** Cloudflare Origin CA wildcard certs (Full Strict mode)
 - **HTTPRoutes:** All routes in `clusterkit` namespace with cross-namespace service refs
-- **App Namespaces:** torale, torale-staging, bananagraph, a2aregistry, repowire, prefect
-- **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled) — shared by torale, bananagraph, a2aregistry, prefect
+- **App Namespaces:** torale, torale-staging, bananagraph, a2aregistry, repowire
+- **Database:** Cloud SQL PostgreSQL (db-f1-micro, PITR disabled) — shared by torale, bananagraph, a2aregistry
 - **DNS split:** ExternalDNS owns gateway A records (proxied), Terraform owns email/verification/Pages
 - **Cost Savings:** £5/month saved by using single Gateway IP instead of 2 separate IPs
 
