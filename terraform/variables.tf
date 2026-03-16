@@ -91,6 +91,13 @@ variable "cloudsql_users" {
   sensitive = true
 }
 
+# App namespaces that need cross-namespace routing (ReferenceGrants from clusterkit → these)
+variable "app_namespaces" {
+  description = "Kubernetes namespaces that need ReferenceGrants for cross-namespace Gateway routing"
+  type        = list(string)
+  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire"]
+}
+
 # Workload Identity bindings for Cloud SQL proxy access
 variable "cloudsql_workload_identity_bindings" {
   description = "K8s service accounts that need Cloud SQL proxy access via Workload Identity"

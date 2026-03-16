@@ -136,8 +136,7 @@ module "gateway" {
 
   ssl_certificate_names = [for cert in google_compute_ssl_certificate.origin_ca : cert.name]
 
-  # Allow HTTPRoutes in clusterkit namespace to reference services in app namespaces
-  allowed_route_namespaces = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire"]
+  allowed_route_namespaces = var.app_namespaces
 
   depends_on = [
     module.gke,
