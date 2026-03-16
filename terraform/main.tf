@@ -100,16 +100,18 @@ resource "google_compute_ssl_certificate" "origin_ca" {
   }
 }
 
-# Cloudflare zone SSL mode: Full (Strict) — validates Origin CA cert on Gateway
-resource "cloudflare_zone_settings_override" "ssl_strict" {
+# Cloudflare zone security settings — HTTPS enforcement and TLS hardening.
+# Origin CA domains get Full (Strict) to validate the cert on Gateway.
+# Other domains (e.g. Cloudflare Pages) get Full (sufficient for Pages-hosted sites).
+resource "cloudflare_zone_settings_override" "zone_settings" {
   for_each = {
-    for domain in var.origin_ca_domains :
+    for domain in var.cloudflare_domains :
     domain => local.cloudflare_zone_ids[domain]
     if contains(keys(local.cloudflare_zone_ids), domain)
   }
   zone_id = each.value
   settings {
-    ssl              = "strict"
+    ssl              = contains(var.origin_ca_domains, each.key) ? "strict" : "full"
     always_use_https = "on"
     min_tls_version  = "1.2"
     tls_1_3          = "on"
