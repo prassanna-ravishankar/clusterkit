@@ -126,8 +126,7 @@ terraform/
 docs/
 ├── app-integration.md      # Guide for app developers
 ├── maintenance.md          # Operator guide (adding domains, troubleshooting)
-├── external-dns-values.yaml
-└── prefect-values.yaml
+└── external-dns-values.yaml
 ```
 
 ## Documentation
