@@ -1,4 +1,7 @@
 # Service Account for ExternalDNS
+# NOTE: ExternalDNS currently uses Cloudflare provider (CF_API_TOKEN), not Cloud DNS.
+# This GCP SA + dns.admin role is unused but kept to avoid a state-destroying change.
+# Consider removing via `terraform state rm` + code deletion if cleaning up IAM.
 resource "google_service_account" "external_dns" {
   account_id   = "external-dns-${var.cluster_name}"
   display_name = "ExternalDNS Service Account for ${var.cluster_name}"
