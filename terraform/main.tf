@@ -105,6 +105,7 @@ resource "google_compute_ssl_certificate" "origin_ca" {
 # Cloudflare zone security settings — HTTPS enforcement and TLS hardening.
 # Origin CA domains get Full (Strict) to validate the cert on Gateway.
 # Other domains (e.g. Cloudflare Pages) get Full (sufficient for Pages-hosted sites).
+# Per-domain overrides (e.g. HTTP/3 off for SSE) via var.cloudflare_domain_settings.
 resource "cloudflare_zone_settings_override" "zone_settings" {
   for_each = {
     for domain in var.cloudflare_domains :
@@ -113,10 +114,11 @@ resource "cloudflare_zone_settings_override" "zone_settings" {
   }
   zone_id = each.value
   settings {
-    ssl              = contains(var.origin_ca_domains, each.key) ? "strict" : "full"
-    always_use_https = "on"
-    min_tls_version  = "1.2"
-    tls_1_3          = "on"
+    ssl                = contains(var.origin_ca_domains, each.key) ? "strict" : "full"
+    always_use_https   = "on"
+    min_tls_version    = "1.2"
+    tls_1_3            = "on"
+    http3 = lookup(lookup(var.cloudflare_domain_settings, each.key, {}), "http3", "on")
   }
 }
 
