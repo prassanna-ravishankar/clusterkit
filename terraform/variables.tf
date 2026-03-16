@@ -69,12 +69,6 @@ variable "deletion_protection" {
   default     = true
 }
 
-variable "create_service_account_keys" {
-  description = "Whether to create service account keys (not recommended when using Workload Identity)"
-  type        = bool
-  default     = false
-}
-
 # Cloud SQL Variables
 variable "cloudsql_instance_name" {
   description = "Name of the shared Cloud SQL instance"

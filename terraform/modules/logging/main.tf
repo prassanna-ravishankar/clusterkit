@@ -28,10 +28,12 @@ resource "google_logging_project_exclusion" "sample_info_logs" {
   count = var.info_log_sample_rate < 1.0 ? 1 : 0
 
   name   = "sample-info-logs"
+  # sample() in an exclusion filter matches the given fraction and excludes it.
+  # To keep X% of logs, we must exclude (1 - X)%.
   filter = <<-EOT
     resource.type="k8s_container"
     severity<"ERROR"
-    sample(insertId, ${var.info_log_sample_rate})
+    sample(insertId, ${1 - var.info_log_sample_rate})
   EOT
 }
 

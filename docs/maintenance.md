@@ -97,7 +97,7 @@ No infrastructure changes needed — wildcard Origin CA certs cover all subdomai
    ```
    Terraform looks up the zone ID automatically, generates an Origin CA cert, adds it to the Gateway, and sets Full (Strict) SSL.
 
-6. **Add ReferenceGrant** if the app lives in a new namespace:
+4. **Add ReferenceGrant** if the app lives in a new namespace:
    ```hcl
    module "gateway" {
      allowed_route_namespaces = [
@@ -107,7 +107,7 @@ No infrastructure changes needed — wildcard Origin CA certs cover all subdomai
    }
    ```
 
-7. **Application team deploys HTTPRoute** — ExternalDNS handles DNS automatically.
+5. **Application team deploys HTTPRoute** — ExternalDNS handles DNS automatically.
 
 ## SSL Certificate Management
 

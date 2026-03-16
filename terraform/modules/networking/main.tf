@@ -11,14 +11,3 @@ resource "google_compute_global_address" "ingress_ip" {
     purpose     = "ingress-loadbalancer"
   }
 }
-
-# Output the IP for use in DNS configuration
-resource "null_resource" "display_ip" {
-  triggers = {
-    ip_address = google_compute_global_address.ingress_ip.address
-  }
-
-  provisioner "local-exec" {
-    command = "echo 'Static IP Address: ${google_compute_global_address.ingress_ip.address}'"
-  }
-}

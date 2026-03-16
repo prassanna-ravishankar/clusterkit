@@ -40,7 +40,7 @@ module "networking" {
   depends_on = [google_project_service.required_apis]
 }
 
-# IAM Service Accounts for ExternalDNS and cert-manager
+# IAM Service Account for ExternalDNS
 module "iam" {
   source = "./modules/iam"
 

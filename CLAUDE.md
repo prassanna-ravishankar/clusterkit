@@ -85,7 +85,6 @@ Reusable modules in `terraform/modules/`:
 - `gke/` - GKE Autopilot cluster with configurable logging/monitoring
 - `gateway-api/` - Gateway with SSL certs and ReferenceGrants
 - `cloudflare-dns/` - Cloudflare DNS record management
-- `cloudflare/` - Cloudflare zone settings (page rules, caching, WAF, rate limiting)
 - `httproute/` - HTTPRoute template (for application use)
 - `networking/` - Static IP addresses
 - `iam/` - Service accounts with Workload Identity
