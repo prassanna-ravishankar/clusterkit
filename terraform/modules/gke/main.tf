@@ -21,6 +21,20 @@ resource "google_container_cluster" "primary" {
     services_ipv4_cidr_block = ""
   }
 
+  # Restrict API server access to authorized networks
+  dynamic "master_authorized_networks_config" {
+    for_each = length(var.master_authorized_networks) > 0 ? [1] : []
+    content {
+      dynamic "cidr_blocks" {
+        for_each = var.master_authorized_networks
+        content {
+          cidr_block   = cidr_blocks.value.cidr
+          display_name = cidr_blocks.value.name
+        }
+      }
+    }
+  }
+
   # Deletion protection
   deletion_protection = var.deletion_protection
 

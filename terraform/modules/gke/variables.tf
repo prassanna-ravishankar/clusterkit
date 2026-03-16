@@ -31,6 +31,15 @@ variable "deletion_protection" {
   default     = true
 }
 
+variable "master_authorized_networks" {
+  description = "CIDRs allowed to access the Kubernetes API server (empty = unrestricted)"
+  type = list(object({
+    name = string
+    cidr = string
+  }))
+  default = []
+}
+
 variable "enable_workload_logging" {
   description = "Enable logging for workload containers (disable to save costs)"
   type        = bool

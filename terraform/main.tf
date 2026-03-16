@@ -112,6 +112,7 @@ resource "cloudflare_zone_settings_override" "ssl_strict" {
     ssl              = "strict"
     always_use_https = "on"
     min_tls_version  = "1.2"
+    tls_1_3          = "on"
   }
 }
 
@@ -150,7 +151,7 @@ module "cloudsql" {
   backup_enabled                 = true
   backup_start_time              = "03:00"
   point_in_time_recovery_enabled = false
-  transaction_log_retention_days = 7
+  transaction_log_retention_days = 1 # Minimum — PITR is disabled, no need to retain
 
   maintenance_window_day          = 7
   maintenance_window_hour         = 3
