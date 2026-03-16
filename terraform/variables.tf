@@ -91,6 +91,23 @@ variable "cloudsql_users" {
   sensitive = true
 }
 
+# Workload Identity bindings for Cloud SQL proxy access
+variable "cloudsql_workload_identity_bindings" {
+  description = "K8s service accounts that need Cloud SQL proxy access via Workload Identity"
+  type = map(object({
+    namespace       = string
+    service_account = string
+  }))
+  default = {
+    torale                    = { namespace = "torale", service_account = "torale-sa" }
+    torale-staging            = { namespace = "torale-staging", service_account = "torale-sa" }
+    torale-migrations         = { namespace = "torale", service_account = "torale-sa-migrations" }
+    torale-staging-migrations = { namespace = "torale-staging", service_account = "torale-sa-migrations" }
+    a2aregistry               = { namespace = "a2aregistry", service_account = "a2aregistry-sa" }
+    bananagraph               = { namespace = "bananagraph", service_account = "bananagraph-sa" }
+  }
+}
+
 # Domains that get Cloudflare Origin CA wildcard certs on the Gateway
 variable "origin_ca_domains" {
   description = "Domains to generate Cloudflare Origin CA wildcard certs for"

@@ -185,39 +185,15 @@ module "cloudsql_proxy_sa" {
   service_account_id = "cloudsql-proxy"
   display_name       = "Cloud SQL Proxy for GKE"
 
-  enable_workload_identity = true
-  k8s_namespace            = "torale"
-  k8s_service_account      = "torale-sa"
+  enable_workload_identity = false # Bindings managed below via for_each
 }
 
-# Workload Identity bindings for other namespaces
-resource "google_service_account_iam_member" "workload_identity_torale_staging" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa]"
-}
+# Workload Identity bindings for Cloud SQL proxy access
+resource "google_service_account_iam_member" "cloudsql_workload_identity" {
+  for_each = var.cloudsql_workload_identity_bindings
 
-resource "google_service_account_iam_member" "workload_identity_torale_migrations" {
   service_account_id = module.cloudsql_proxy_sa.service_account_name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale/torale-sa-migrations]"
-}
-
-resource "google_service_account_iam_member" "workload_identity_torale_staging_migrations" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[torale-staging/torale-sa-migrations]"
-}
-
-resource "google_service_account_iam_member" "workload_identity_a2aregistry" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[a2aregistry/a2aregistry-sa]"
-}
-
-resource "google_service_account_iam_member" "workload_identity_bananagraph" {
-  service_account_id = module.cloudsql_proxy_sa.service_account_name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[bananagraph/bananagraph-sa]"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[${each.value.namespace}/${each.value.service_account}]"
 }
 
