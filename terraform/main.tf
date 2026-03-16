@@ -22,7 +22,7 @@ module "gke" {
   kubernetes_version = var.kubernetes_version
 
   # Cost optimization for side project
-  enable_workload_logging = true                                       # Keep app logs for debugging
+  enable_workload_logging = true # Keep app logs for debugging
   monitoring_components   = ["SYSTEM_COMPONENTS", "POD"]
   # Note: Managed Prometheus cannot be disabled in Autopilot (auto-enabled)
 

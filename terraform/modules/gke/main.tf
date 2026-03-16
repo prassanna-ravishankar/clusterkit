@@ -3,7 +3,7 @@ resource "google_container_cluster" "primary" {
   location = var.region
 
   # Enable Autopilot mode - Google manages all infrastructure automatically
-  enable_autopilot  = true
+  enable_autopilot   = true
   min_master_version = var.kubernetes_version
 
   # Release channel for automatic updates

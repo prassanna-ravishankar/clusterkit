@@ -13,7 +13,7 @@ resource "google_artifact_registry_repository" "gcr" {
     action = "KEEP"
 
     most_recent_versions {
-      keep_count = 50  # Keep 50 most recent images across all packages
+      keep_count = 50 # Keep 50 most recent images across all packages
     }
   }
 

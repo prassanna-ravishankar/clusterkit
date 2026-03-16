@@ -51,7 +51,7 @@ output "kubectl_connection_command" {
 
 output "next_steps" {
   description = "Next steps after infrastructure deployment"
-  value = <<-EOT
+  value       = <<-EOT
 
   Infrastructure deployment complete!
 
