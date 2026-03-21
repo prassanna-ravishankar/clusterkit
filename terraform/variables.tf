@@ -95,7 +95,7 @@ variable "cloudsql_users" {
 variable "app_namespaces" {
   description = "Kubernetes namespaces that need ReferenceGrants for cross-namespace Gateway routing"
   type        = list(string)
-  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire"]
+  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire", "agentdance"]
 }
 
 # Workload Identity bindings for Cloud SQL proxy access
@@ -126,7 +126,7 @@ variable "cloudflare_domain_settings" {
 variable "origin_ca_domains" {
   description = "Domains to generate Cloudflare Origin CA wildcard certs for"
   type        = list(string)
-  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io"]
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "agentdance.ai"]
 }
 
 # All Cloudflare-managed domains (superset of origin_ca_domains — includes dns.tf-only domains)
