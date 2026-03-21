@@ -115,11 +115,32 @@ variable "cloudsql_workload_identity_bindings" {
   }
 }
 
+# GitHub repos that get Workload Identity Federation for CI/CD
+variable "github_org" {
+  description = "GitHub organization or user that owns the repos"
+  type        = string
+  default     = "prassanna-ravishankar"
+}
+
+variable "github_deploy_repos" {
+  description = "Map of app name to GitHub repo for WIF-based CI/CD"
+  type = map(object({
+    repo = string
+  }))
+  default = {
+    agentdance  = { repo = "agentdance" }
+    torale      = { repo = "torale" }
+    repowire    = { repo = "repowire" }
+    a2aregistry = { repo = "a2a-registry" }
+    bananagraph = { repo = "bananagraph" }
+  }
+}
+
 # Per-domain Cloudflare setting overrides (merged on top of defaults)
 variable "cloudflare_domain_settings" {
   description = "Per-domain Cloudflare zone setting overrides"
   type        = map(map(string))
-  default = {}
+  default     = {}
 }
 
 # Domains that get Cloudflare Origin CA wildcard certs on the Gateway

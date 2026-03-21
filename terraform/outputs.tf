@@ -79,3 +79,14 @@ output "cloudsql_proxy_service_account" {
   description = "Cloud SQL proxy service account email"
   value       = module.cloudsql_proxy_sa.service_account_email
 }
+
+# GitHub Actions WIF Outputs
+output "github_wif_provider" {
+  description = "WIF provider name (use in google-github-actions/auth)"
+  value       = module.github_wif.provider_name
+}
+
+output "github_deploy_service_accounts" {
+  description = "Map of app name to deploy service account email"
+  value       = module.github_wif.service_account_emails
+}

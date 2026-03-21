@@ -7,6 +7,8 @@ resource "google_project_service" "required_apis" {
     "cloudresourcemanager.googleapis.com", # Resource Manager
     "sqladmin.googleapis.com",             # Cloud SQL Admin
     "artifactregistry.googleapis.com",     # Artifact Registry
+    "iamcredentials.googleapis.com",       # Workload Identity Federation
+    "sts.googleapis.com",                  # Security Token Service (WIF)
   ])
 
   service            = each.value
@@ -114,11 +116,11 @@ resource "cloudflare_zone_settings_override" "zone_settings" {
   }
   zone_id = each.value
   settings {
-    ssl                = contains(var.origin_ca_domains, each.key) ? "strict" : "full"
-    always_use_https   = "on"
-    min_tls_version    = "1.2"
-    tls_1_3            = "on"
-    http3 = lookup(lookup(var.cloudflare_domain_settings, each.key, {}), "http3", "on")
+    ssl              = contains(var.origin_ca_domains, each.key) ? "strict" : "full"
+    always_use_https = "on"
+    min_tls_version  = "1.2"
+    tls_1_3          = "on"
+    http3            = lookup(lookup(var.cloudflare_domain_settings, each.key, {}), "http3", "on")
   }
 }
 
@@ -181,6 +183,17 @@ module "cloudsql_proxy_sa" {
   display_name       = "Cloud SQL Proxy for GKE"
 
   enable_workload_identity = false # Bindings managed below via for_each
+}
+
+# GitHub Actions Workload Identity Federation (keyless CI/CD)
+module "github_wif" {
+  source = "./modules/github-wif"
+
+  project_id = var.project_id
+  github_org = var.github_org
+  repos      = var.github_deploy_repos
+
+  depends_on = [google_project_service.required_apis]
 }
 
 # Workload Identity bindings for Cloud SQL proxy access
