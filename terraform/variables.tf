@@ -95,7 +95,7 @@ variable "cloudsql_users" {
 variable "app_namespaces" {
   description = "Kubernetes namespaces that need ReferenceGrants for cross-namespace Gateway routing"
   type        = list(string)
-  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire", "agentdance"]
+  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire", "agentdance", "pulse"]
 }
 
 # Workload Identity bindings for Cloud SQL proxy access
