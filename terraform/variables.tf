@@ -133,6 +133,7 @@ variable "github_deploy_repos" {
     repowire    = { repo = "repowire" }
     a2aregistry = { repo = "a2a-registry" }
     bananagraph = { repo = "bananagraph" }
+    pulse       = { repo = "pulse" }
   }
 }
 
