@@ -169,6 +169,64 @@ kubectl describe httproute <name> -n clusterkit
 kubectl get gateway clusterkit-gateway -n clusterkit -o jsonpath='{.status.listeners[0].attachedRoutes}'
 ```
 
+### Pre-cutover Hostname Staging (noindex)
+
+When staging a new hostname for validation before public cutover (e.g. domain rebrand), use a `ResponseHeaderModifier` filter to inject `X-Robots-Tag: noindex` so the route is reachable but not indexed. Validated on `gke-l7-global-external-managed`.
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: example-staging
+  namespace: clusterkit
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+spec:
+  parentRefs:
+  - name: clusterkit-gateway
+    namespace: clusterkit
+  hostnames:
+  - "new.example.com"
+  rules:
+  - filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        set:
+        - name: X-Robots-Tag
+          value: "noindex, nofollow"
+    backendRefs:
+    - name: app-service
+      namespace: app-ns
+      port: 80
+```
+
+Verify the header lands end-to-end (Cloudflare proxies the value through unmodified):
+```bash
+curl -sI https://new.example.com/ | grep -i x-robots-tag
+```
+
+To cut over: remove the `filters` block (or `set` → `remove`) and apply.
+
+**Cleanup note:** ExternalDNS runs in `upsert-only` policy (see [ExternalDNS Configuration](#externaldns-configuration)) — it creates A/TXT records when the HTTPRoute is added but **does not delete them** when the route is removed. After deleting a staging HTTPRoute, manually remove the orphan records via the Cloudflare dashboard or API:
+```bash
+ZONE_ID=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones?name=example.com" | jq -r '.result[0].id')
+for name in new.example.com a-new.example.com; do
+  curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$name" \
+    | jq -r '.result[].id' \
+    | xargs -I{} curl -s -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/{}"
+done
+```
+
+Verify deletion via API rather than `dig` — Cloudflare's nameservers return edge IPs for any name in a proxied zone (including deleted ones), so `dig +short` is misleading post-delete:
+```bash
+curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=new.example.com" \
+  | jq '.result_info.count'  # expect 0
+```
+
 ### ReferenceGrant Management
 
 ReferenceGrants allow HTTPRoutes in `clusterkit` namespace to reference services in app namespaces.
