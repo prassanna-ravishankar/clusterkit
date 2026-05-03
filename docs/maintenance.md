@@ -169,6 +169,44 @@ kubectl describe httproute <name> -n clusterkit
 kubectl get gateway clusterkit-gateway -n clusterkit -o jsonpath='{.status.listeners[0].attachedRoutes}'
 ```
 
+### Pre-cutover Hostname Staging (noindex)
+
+When staging a new hostname for validation before public cutover (e.g. domain rebrand), use a `ResponseHeaderModifier` filter to inject `X-Robots-Tag: noindex` so the route is reachable but not indexed. Validated on `gke-l7-global-external-managed`.
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: example-staging
+  namespace: clusterkit
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+spec:
+  parentRefs:
+  - name: clusterkit-gateway
+    namespace: clusterkit
+  hostnames:
+  - "new.example.com"
+  rules:
+  - filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        set:
+        - name: X-Robots-Tag
+          value: "noindex, nofollow"
+    backendRefs:
+    - name: app-service
+      namespace: app-ns
+      port: 80
+```
+
+Verify the header lands end-to-end (Cloudflare proxies the value through unmodified):
+```bash
+curl -sI https://new.example.com/ | grep -i x-robots-tag
+```
+
+To cut over: remove the `filters` block (or `set` → `remove`) and apply. ExternalDNS auto-creates the proxied A record at apply time and removes it on delete.
+
 ### ReferenceGrant Management
 
 ReferenceGrants allow HTTPRoutes in `clusterkit` namespace to reference services in app namespaces.
