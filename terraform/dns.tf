@@ -25,21 +25,12 @@ module "dns_torale" {
   zone_id = local.cloudflare_zone_ids["torale.ai"]
 
   records = [
-    # Clerk authentication
-    { name = "accounts", content = "accounts.clerk.services", type = "CNAME" },
-    { name = "clerk", content = "frontend-api.clerk.services", type = "CNAME" },
-    { name = "clk._domainkey", content = "dkim1.kdbjwdvfrrrp.clerk.services", type = "CNAME" },
-    { name = "clk2._domainkey", content = "dkim2.kdbjwdvfrrrp.clerk.services", type = "CNAME" },
-    { name = "clkmail", content = "mail.kdbjwdvfrrrp.clerk.services", type = "CNAME" },
+    # Clerk authentication: rotated to webwhen.ai at T-0 cutover. Records removed.
+    # Resend (transactional email via SES): rotated to webwhen.ai at T-0 cutover. Records removed.
 
     # Google Workspace
     { name = "app", content = "ghs.googlehosted.com", type = "CNAME" },
     # mx-google MX record managed by Cloudflare Email Routing — not Terraform.
-
-    # Resend (transactional email via SES)
-    { key = "mx-ses", name = "send", content = "feedback-smtp.eu-west-1.amazonses.com", type = "MX", priority = 10 },
-    { key = "txt-send-spf", name = "send", content = "v=spf1 include:amazonses.com ~all", type = "TXT" },
-    { key = "txt-resend-dkim", name = "resend._domainkey", content = "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDUGDelSMuhI3U6xe9D8l7Y7w19TZQz9qwikptfdwPNILwlPBG2W8Bwj1EjMT9U7KmuiLdWshVKjPb0b9VU+TL0BVfye+zytg4JNWbIDXSBs4bfin4xBihl/UspAnIs2w4V74NEaZ6c9nxTlkQhAKWSmr7eHsg7ylDHk3pwDbuA+QIDAQAB", type = "TXT" },
 
     # Email authentication
     { key = "txt-dmarc", name = "_dmarc", content = "v=DMARC1; p=none; rua=mailto:me@prassanna.io", type = "TXT" },
