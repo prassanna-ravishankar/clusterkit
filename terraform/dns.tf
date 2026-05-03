@@ -50,6 +50,17 @@ module "dns_torale" {
   ]
 }
 
+# webwhen.ai (rebrand target for torale.ai — pre-staged for parallel routing during validation window)
+# Email/auth/verification records will be added once rebrand peer onboards Clerk, Google Workspace, and Resend
+# on webwhen.ai and provides per-domain DKIM selectors.
+# Gateway A records (webwhen.ai, www, api, staging, docs) will be created by ExternalDNS via HTTPRoutes at T-2d.
+module "dns_webwhen" {
+  source  = "./modules/cloudflare-dns"
+  zone_id = local.cloudflare_zone_ids["webwhen.ai"]
+
+  records = []
+}
+
 # a2aregistry.org (gateway records managed by ExternalDNS, only verification TXT here)
 module "dns_a2aregistry" {
   source  = "./modules/cloudflare-dns"
