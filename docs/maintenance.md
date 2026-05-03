@@ -205,7 +205,20 @@ Verify the header lands end-to-end (Cloudflare proxies the value through unmodif
 curl -sI https://new.example.com/ | grep -i x-robots-tag
 ```
 
-To cut over: remove the `filters` block (or `set` → `remove`) and apply. ExternalDNS auto-creates the proxied A record at apply time and removes it on delete.
+To cut over: remove the `filters` block (or `set` → `remove`) and apply.
+
+**Cleanup note:** ExternalDNS runs in `upsert-only` policy (see [ExternalDNS Configuration](#externaldns-configuration)) — it creates A/TXT records when the HTTPRoute is added but **does not delete them** when the route is removed. After deleting a staging HTTPRoute, manually remove the orphan records via the Cloudflare dashboard or API:
+```bash
+ZONE_ID=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones?name=example.com" | jq -r '.result[0].id')
+for name in new.example.com a-new.example.com; do
+  curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$name" \
+    | jq -r '.result[].id' \
+    | xargs -I{} curl -s -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/{}"
+done
+```
 
 ### ReferenceGrant Management
 
