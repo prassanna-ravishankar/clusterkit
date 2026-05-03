@@ -220,6 +220,13 @@ for name in new.example.com a-new.example.com; do
 done
 ```
 
+Verify deletion via API rather than `dig` — Cloudflare's nameservers return edge IPs for any name in a proxied zone (including deleted ones), so `dig +short` is misleading post-delete:
+```bash
+curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=new.example.com" \
+  | jq '.result_info.count'  # expect 0
+```
+
 ### ReferenceGrant Management
 
 ReferenceGrants allow HTTPRoutes in `clusterkit` namespace to reference services in app namespaces.
