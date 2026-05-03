@@ -52,7 +52,7 @@ module "dns_torale" {
 
 # webwhen.ai (rebrand target for torale.ai)
 # Gateway A records (webwhen.ai, www, api, docs) are created by ExternalDNS via HTTPRoutes.
-# Google Workspace and Resend records will be added once those services are onboarded for webwhen.ai.
+# Google Workspace records will be added once that service is onboarded for webwhen.ai.
 module "dns_webwhen" {
   source  = "./modules/cloudflare-dns"
   zone_id = local.cloudflare_zone_ids["webwhen.ai"]
@@ -64,6 +64,11 @@ module "dns_webwhen" {
     { name = "clkmail", content = "mail.7o0ix56d85sc.clerk.services", type = "CNAME" },
     { name = "clk._domainkey", content = "dkim1.7o0ix56d85sc.clerk.services", type = "CNAME" },
     { name = "clk2._domainkey", content = "dkim2.7o0ix56d85sc.clerk.services", type = "CNAME" },
+
+    # Resend (transactional email via SES)
+    { key = "mx-ses", name = "send", content = "feedback-smtp.eu-west-1.amazonses.com", type = "MX", priority = 10 },
+    { key = "txt-send-spf", name = "send", content = "v=spf1 include:amazonses.com ~all", type = "TXT" },
+    { key = "txt-resend-dkim", name = "resend._domainkey", content = "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJ9eI0XiKY4a69rClbm4APfnVw1x5yUO5Rg/X5rjZ6TYlnITXlPq6qWp91bGInAavDbeLzELgHLNm0rJ//rTdZFmVbhpD2qB/ES7CLZygwyeuRZIljllMgDFO60Zvn+GLesh2p34ZeXg9EOni1M/pgbVzSSN7fTaaPe5ck2Jqa1QIDAQAB", type = "TXT" },
   ]
 }
 
