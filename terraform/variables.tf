@@ -148,12 +148,12 @@ variable "cloudflare_domain_settings" {
 variable "origin_ca_domains" {
   description = "Domains to generate Cloudflare Origin CA wildcard certs for"
   type        = list(string)
-  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "agentdance.ai"]
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "agentdance.ai", "webwhen.ai"]
 }
 
 # All Cloudflare-managed domains (superset of origin_ca_domains — includes dns.tf-only domains)
 variable "cloudflare_domains" {
   description = "All domains managed in Cloudflare (zone IDs looked up automatically)"
   type        = list(string)
-  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "feedforward.space", "agentdance.ai"]
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "feedforward.space", "agentdance.ai", "webwhen.ai"]
 }
