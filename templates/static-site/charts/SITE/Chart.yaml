@@ -1,0 +1,6 @@
+apiVersion: v2
+name: SITE
+description: Static site served by nginx, fronted by clusterkit-gateway
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

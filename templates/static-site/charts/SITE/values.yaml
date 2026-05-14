@@ -1,0 +1,37 @@
+replicaCount: 1
+
+image:
+  repository: us-docker.pkg.dev/baldmaninc/gcr.io/SITE
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Hostname this route serves. Apex (`domain.com`) or subdomain
+# (`docs.domain.com`). Wildcard Origin CA wildcard covers `*.domain.com`
+# automatically; no per-cert work for new subdomains.
+hostname: example.com
+
+# Set true for apex sites that should redirect www → apex (301).
+# Set false for subdomains (docs, metadata, etc).
+wwwRedirect: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Spot pods: 60-91% cheaper, fine for stateless static-serve.
+nodeSelector:
+  cloud.google.com/gke-spot: "true"
+
+tolerations:
+  - effect: NoSchedule
+    key: cloud.google.com/gke-spot
+    operator: Equal
+    value: "true"
