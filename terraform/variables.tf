@@ -95,7 +95,7 @@ variable "cloudsql_users" {
 variable "app_namespaces" {
   description = "Kubernetes namespaces that need ReferenceGrants for cross-namespace Gateway routing"
   type        = list(string)
-  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire", "agentdance", "pulse"]
+  default     = ["torale", "torale-staging", "bananagraph", "a2aregistry", "repowire", "agentdance", "pulse", "clitcoin"]
 }
 
 # Workload Identity bindings for Cloud SQL proxy access
@@ -129,11 +129,12 @@ variable "github_deploy_repos" {
   }))
   default = {
     agentdance  = { repo = "agentdance" }
-    torale      = { repo = "torale" }
+    torale      = { repo = "webwhen" }
     repowire    = { repo = "repowire" }
     a2aregistry = { repo = "a2a-registry" }
     bananagraph = { repo = "bananagraph" }
     pulse       = { repo = "pulse" }
+    clitcoin    = { repo = "clitcoin" }
   }
 }
 
@@ -148,12 +149,12 @@ variable "cloudflare_domain_settings" {
 variable "origin_ca_domains" {
   description = "Domains to generate Cloudflare Origin CA wildcard certs for"
   type        = list(string)
-  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "agentdance.ai", "webwhen.ai"]
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "agentdance.ai", "webwhen.ai", "freetheclit.com"]
 }
 
 # All Cloudflare-managed domains (superset of origin_ca_domains — includes dns.tf-only domains)
 variable "cloudflare_domains" {
   description = "All domains managed in Cloudflare (zone IDs looked up automatically)"
   type        = list(string)
-  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "feedforward.space", "agentdance.ai", "webwhen.ai"]
+  default     = ["torale.ai", "bananagraph.com", "a2aregistry.org", "repowire.io", "feedforward.space", "agentdance.ai", "webwhen.ai", "freetheclit.com"]
 }
