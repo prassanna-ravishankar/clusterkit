@@ -1,0 +1,59 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Release.Name }}
+  namespace: clusterkit  # HTTPRoute always lives in the gateway namespace
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: clusterkit-gateway
+      namespace: clusterkit
+  hostnames:
+    - {{ .Values.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ .Release.Name }}
+          namespace: {{ .Release.Namespace }}  # cross-namespace ref (RG enables it)
+          port: {{ .Values.service.port }}
+{{- if .Values.wwwRedirect }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Release.Name }}-www-redirect
+  namespace: clusterkit
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: clusterkit-gateway
+      namespace: clusterkit
+  hostnames:
+    - "www.{{ .Values.hostname }}"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: {{ .Values.hostname | quote }}
+            statusCode: 301
+{{- end }}
