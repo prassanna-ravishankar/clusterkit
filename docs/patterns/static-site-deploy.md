@@ -28,6 +28,14 @@ On the freetheclit cutover, clusterkit and the clitcoin app peer both ran `scrip
 
 Avoid it by: clusterkit acks the merge but does not deploy; the app repo's contributor runs the script and reports the verify output back. Clusterkit verifies post-hoc only if asked.
 
+### Canonical anti-pattern: cross-worktree contamination
+
+When the work spans repos, a peer rooted in repo A should not check out branches or commit in repo B's worktree. The clusterkit peer once committed a chart slice directly onto another peer's `feat/docs-site` branch in their worktree, intending to "just borrow the build context for a dry run." Result: the commit rode along on the other peer's next push and contaminated `origin/feat/docs-site`. Cleanup required a coordinated `git reset` + force-push with the affected peer.
+
+Avoid it by: **spawn a dedicated peer per repo.** If the chart work belongs in the repowire repo and you're rooted in clusterkit, ask the orchestrator to spawn a `<project>-chart-claude-code` peer in a sibling worktree of that repo. Hand off via a `git format-patch` saved to a known path. Never reach into another peer's worktree.
+
+Corollary: claims about your own past git/CLI actions must be verified against the remote BEFORE asserting them in a multi-agent thread, not after. Memory of "I didn't push that" is unreliable across context boundaries — `gh api repos/<org>/<repo>/commits/<sha>` is authoritative, your recall is not.
+
 ## Clusterkit-side: one terraform PR
 
 Edit `terraform/variables.tf`:
