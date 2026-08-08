@@ -1,0 +1,159 @@
+name: ClusterKit deploy gate
+
+# Reusable gate: waits for the GCLB to actually serve, not just for Kubernetes
+# to report a successful rollout.
+#
+# Why this exists: `kubectl rollout status` and the HTTPRoute Accepted/ResolvedRefs
+# conditions all go green while the GCLB NEG backend is still failing health checks.
+# On agent-status-codes' first automatic deploy that window was ~2 minutes of public
+# 503s after CI had already reported success. Single-replica Spot pods make it worse:
+# when the pod moves zone, there is exactly one NEG endpoint and nothing serves until
+# the health check catches up in the new zone.
+#
+# Call this AFTER `helm upgrade` + `kubectl rollout status`, e.g.:
+#
+#   jobs:
+#     gate:
+#       needs: deploy
+#       uses: prassanna-ravishankar/clusterkit/.github/workflows/deploy-gate.yml@main
+#       with:
+#         hostnames: webwhen.ai,api.webwhen.ai
+#       secrets: inherit
+#
+# Auth: relies on the caller having already authenticated to GCP via WIF
+# (google-github-actions/auth). Each app has a dedicated gh-deploy-<app> SA;
+# roles/container.developer is enough to read backend health.
+
+on:
+  workflow_call:
+    inputs:
+      hostnames:
+        description: 'Comma-separated public hostnames to verify (e.g. "webwhen.ai,api.webwhen.ai")'
+        required: true
+        type: string
+      project_id:
+        description: 'GCP project containing the Gateway'
+        required: false
+        default: 'baldmaninc'
+        type: string
+      gateway_url_map:
+        description: 'GCLB url-map backing clusterkit-gateway'
+        required: false
+        default: 'gkegw1-tgkp-clusterkit-clusterkit-gateway-hko4nhd5tehf'
+        type: string
+      timeout_seconds:
+        description: 'Give up after this long waiting for backends + public 200'
+        required: false
+        default: 600
+        type: number
+      expected_status:
+        description: 'HTTP status the public hostname should return'
+        required: false
+        default: '200'
+        type: string
+
+jobs:
+  gate:
+    name: Wait for GCLB to serve
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve backend services from the url-map
+        id: resolve
+        run: |
+          set -euo pipefail
+          # Backend service names are truncated and hash-suffixed
+          # (agent-status-codes -> gkegw1-tgkp-agent-status-code-...), so they
+          # cannot be derived from namespace/service. Read them out of the
+          # url-map instead, which is authoritative.
+          gcloud compute url-maps describe "${{ inputs.gateway_url_map }}" \
+            --project "${{ inputs.project_id }}" --format=json > urlmap.json
+
+          python3 - "${{ inputs.hostnames }}" <<'PY' | tee backends.txt
+          import json, sys
+          hosts = [h.strip() for h in sys.argv[1].split(',') if h.strip()]
+          d = json.load(open('urlmap.json'))
+          matcher = {h: r['pathMatcher'] for r in d.get('hostRules', []) for h in r.get('hosts', [])}
+          matchers = {p['name']: p for p in d.get('pathMatchers', [])}
+
+          missing, found = [], set()
+          for host in hosts:
+              pm = matchers.get(matcher.get(host, ''), {})
+              names = {
+                  w['backendService'].rsplit('/', 1)[-1]
+                  for rr in pm.get('routeRules', [])
+                  for w in rr.get('routeAction', {}).get('weightedBackendServices', [])
+              }
+              # serve404 is the Gateway's catch-all, never a real backend.
+              names = {n for n in names if 'serve404' not in n}
+              if not names:
+                  missing.append(host)
+              found |= names
+
+          if missing:
+              print(f"::error::No GCLB backend for: {', '.join(missing)}. "
+                    "HTTPRoute may not be attached to clusterkit-gateway yet.", file=sys.stderr)
+              sys.exit(1)
+          print('\n'.join(sorted(found)))
+          PY
+
+      - name: Wait for backends to report HEALTHY
+        run: |
+          set -euo pipefail
+
+          # Exits 0 only when every NEG endpoint reports HEALTHY. An empty
+          # endpoint list means the NEG has not been populated yet, which is
+          # not healthy — hence the explicit `st and`.
+          cat > check_health.py <<'PY'
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+          except Exception:
+              sys.exit(1)
+          st = [h.get('healthState') for b in d for h in b.get('status', {}).get('healthStatus', [])]
+          print('  endpoints:', st or '(none yet)')
+          sys.exit(0 if st and all(s == 'HEALTHY' for s in st) else 1)
+          PY
+
+          deadline=$(( $(date +%s) + ${{ inputs.timeout_seconds }} ))
+          while read -r bs; do
+            [ -n "$bs" ] || continue
+            echo "::group::$bs"
+            until gcloud compute backend-services get-health "$bs" --global \
+                    --project "${{ inputs.project_id }}" --format=json 2>/dev/null \
+                  | python3 check_health.py; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "::error::$bs never became HEALTHY within ${{ inputs.timeout_seconds }}s"
+                exit 1
+              fi
+              sleep 10
+            done
+            echo "HEALTHY"
+            echo "::endgroup::"
+          done < backends.txt
+
+      - name: Wait for public hostnames to serve
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + ${{ inputs.timeout_seconds }} ))
+          IFS=',' read -ra HOSTS <<< "${{ inputs.hostnames }}"
+          for host in "${HOSTS[@]}"; do
+            host="$(echo "$host" | xargs)"
+            [ -n "$host" ] || continue
+            # Two consecutive good responses: a single 200 can land on a healthy
+            # zone while another is still converging.
+            streak=0
+            until [ "$streak" -ge 2 ]; do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://$host" || echo 000)
+              if [ "$code" = "${{ inputs.expected_status }}" ]; then
+                streak=$((streak + 1))
+              else
+                streak=0
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "::error::https://$host returned $code, expected ${{ inputs.expected_status }}"
+                  exit 1
+                fi
+                sleep 10
+              fi
+            done
+            echo "https://$host -> ${{ inputs.expected_status }}"
+          done
