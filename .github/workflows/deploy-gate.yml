@@ -20,9 +20,17 @@ name: ClusterKit deploy gate
 #         hostnames: webwhen.ai,api.webwhen.ai
 #       secrets: inherit
 #
-# Auth: relies on the caller having already authenticated to GCP via WIF
-# (google-github-actions/auth). Each app has a dedicated gh-deploy-<app> SA;
-# roles/container.developer is enough to read backend health.
+# Auth: this workflow authenticates to GCP itself. A called workflow does NOT
+# inherit the calling job's steps, so the caller's google-github-actions/auth
+# does not carry over here. It needs `secrets: inherit` (for
+# GCP_WORKLOAD_IDENTITY_PROVIDER + GCP_SERVICE_ACCOUNT) and declares its own
+# `id-token: write` permission to mint the OIDC token.
+#
+# Each app has a dedicated gh-deploy-<app> SA; roles/container.developer is
+# enough to read backend health.
+
+permissions:
+  contents: read
 
 on:
   workflow_call:
@@ -51,12 +59,31 @@ on:
         required: false
         default: '200'
         type: string
+    secrets:
+      GCP_WORKLOAD_IDENTITY_PROVIDER:
+        description: 'WIF provider; same secret the caller uses to deploy'
+        required: true
+      GCP_SERVICE_ACCOUNT:
+        description: 'gh-deploy-<app> service account email'
+        required: true
 
 jobs:
   gate:
     name: Wait for GCLB to serve
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required to mint the OIDC token for WIF
     steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
       - name: Resolve backend services from the url-map
         id: resolve
         run: |
