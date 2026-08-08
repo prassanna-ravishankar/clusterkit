@@ -36,7 +36,14 @@ on:
   workflow_call:
     inputs:
       hostnames:
-        description: 'Comma-separated public hostnames to verify (e.g. "webwhen.ai,api.webwhen.ai")'
+        description: >-
+          Comma-separated public hostnames to verify. Each entry may carry an
+          optional probe path and an optional expected status, so hosts whose
+          "/" is not a 200 can still be checked:
+            webwhen.ai,api.webwhen.ai/health,old.example.com/=301
+          Backend resolution always uses the bare hostname; the path and status
+          affect only the public probe. Falls back to expected_status when a
+          per-host status is omitted.
         required: true
         type: string
       project_id:
@@ -140,7 +147,15 @@ jobs:
 
           python3 - "${{ inputs.hostnames }}" <<'PY' | tee backends.txt
           import json, sys
-          hosts = [h.strip() for h in sys.argv[1].split(',') if h.strip()]
+          # Entries may be "host", "host/path", "host/path=STATUS" or
+          # "host=STATUS". Only the bare hostname keys the url-map lookup.
+          hosts = []
+          for raw in sys.argv[1].split(','):
+              raw = raw.strip()
+              if not raw:
+                  continue
+              spec = raw.split('=', 1)[0]
+              hosts.append(spec.split('/', 1)[0])
           if not hosts:
               # ", ," is non-empty as a string but yields no hosts; without this
               # the gate would find nothing, check nothing, and pass.
@@ -177,7 +192,10 @@ jobs:
 
           if missing:
               print(f"::error::No GCLB backend for: {', '.join(missing)}. "
-                    "HTTPRoute may not be attached to clusterkit-gateway yet.", file=sys.stderr)
+                    "Either the HTTPRoute is not attached to clusterkit-gateway yet, or the "
+                    "host is served by a RequestRedirect-only route (no backendRefs) — "
+                    "redirect-only hosts have no backend to health-check and cannot be "
+                    "listed in 'hostnames'.", file=sys.stderr)
               sys.exit(1)
           print('\n'.join(sorted(found)))
           PY
@@ -226,36 +244,51 @@ jobs:
         run: |
           set -euo pipefail
           deadline=$(( $(date +%s) + ${{ inputs.timeout_seconds }} ))
+          DEFAULT_STATUS='${{ inputs.expected_status }}'
           IFS=',' read -ra HOSTS <<< "${{ inputs.hostnames }}"
-          for host in "${HOSTS[@]}"; do
-            host="$(echo "$host" | xargs)"
-            [ -n "$host" ] || continue
+          for entry in "${HOSTS[@]}"; do
+            entry="$(echo "$entry" | xargs)"
+            [ -n "$entry" ] || continue
+
+            # "host", "host/path", "host/path=STATUS" or "host=STATUS".
+            # Split the status suffix first so a path containing '=' is safe.
+            if [[ "$entry" == *=* ]]; then
+              want="${entry##*=}"; target="${entry%=*}"
+            else
+              want="$DEFAULT_STATUS"; target="$entry"
+            fi
+            # Redirects are a legitimate expectation (301 for a cutover host),
+            # so never follow them — following would mask the very thing checked.
+            url="https://$target"
+
             # Two SPACED observations: a single 200 can land on an already-
             # converged zone while another is still catching up. They must be
             # separated in time and must not be served from cache, or "two
             # observations" is a guarantee in name only.
             streak=0
             until [ "$streak" -ge 2 ]; do
+              # Cache-bust with the right separator for the URL's existing query.
+              case "$url" in *\?*) sep='&';; *) sep='?';; esac
               # Assign explicitly: `$(curl ...) || echo 000` appends to curl's
               # own "000" on failure, producing "000000".
               if code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
                           -H 'Cache-Control: no-cache' \
-                          "https://$host?_gate=$(date +%s)-$streak"); then
+                          "${url}${sep}_gate=$(date +%s)-$streak"); then
                 :
               else
                 code=000
               fi
-              if [ "$code" = "${{ inputs.expected_status }}" ]; then
+              if [ "$code" = "$want" ]; then
                 streak=$((streak + 1))
                 [ "$streak" -ge 2 ] || sleep "${{ inputs.probe_interval_seconds }}"
               else
                 streak=0
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "::error::https://$host returned $code, expected ${{ inputs.expected_status }}"
+                  echo "::error::$url returned $code, expected $want"
                   exit 1
                 fi
                 sleep 10
               fi
             done
-            echo "https://$host -> ${{ inputs.expected_status }}"
+            echo "$url -> $want"
           done
