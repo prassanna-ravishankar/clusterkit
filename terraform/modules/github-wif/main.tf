@@ -69,6 +69,30 @@ resource "google_project_iam_member" "gke_developer" {
   member  = "serviceAccount:${google_service_account.github_deploy[each.key].email}"
 }
 
+# Read-only access to the Gateway's load balancer, so CI can verify a deploy is
+# actually serving before declaring success. roles/container.developer carries
+# no compute.* permissions at all, so without this the deploy gate fails on
+# compute.urlMaps.get. Deliberately a minimal custom role rather than
+# roles/compute.viewer, which would grant read across all Compute resources.
+resource "google_project_iam_custom_role" "gclb_health_reader" {
+  project     = var.project_id
+  role_id     = "clusterkitGclbHealthReader"
+  title       = "ClusterKit GCLB Health Reader"
+  description = "Read url-map topology and backend service health for deploy verification"
+  permissions = [
+    "compute.urlMaps.get",
+    "compute.backendServices.get", # also authorizes backendServices.getHealth
+  ]
+}
+
+resource "google_project_iam_member" "gclb_health_reader" {
+  for_each = var.repos
+
+  project = var.project_id
+  role    = google_project_iam_custom_role.gclb_health_reader.name
+  member  = "serviceAccount:${google_service_account.github_deploy[each.key].email}"
+}
+
 locals {
   pool_name = var.create_pool ? google_iam_workload_identity_pool.github[0].name : "projects/${var.project_id}/locations/global/workloadIdentityPools/${var.pool_id}"
 }

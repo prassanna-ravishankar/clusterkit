@@ -19,13 +19,17 @@ name: ClusterKit deploy app
 #       needs: build
 #       uses: prassanna-ravishankar/clusterkit/.github/workflows/deploy-app.yml@main
 #       with:
-#         chart_path:  charts/agent-status-codes
+#         chart_path:  helm/agent-status-codes
 #         release:     agent-status-codes
 #         namespace:   agent-status-codes
-#         image_tag:   ${{ github.sha }}
+#         source_sha:  ${{ github.event.workflow_run.head_sha }}
 #         deployments: agent-status-codes
 #         hostnames:   agentstatuscodes.org
-#       secrets: inherit
+#       secrets:
+#         # Explicit mapping is preferred over `secrets: inherit`, which passes
+#         # every repository secret to a workflow in another repo.
+#         GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+#         GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 #
 # Auth: see deploy-gate.yml. Both WIF secret naming conventions are accepted.
 
@@ -55,20 +59,22 @@ on:
         description: 'Comma-separated public hostnames to verify once rolled out'
         required: true
         type: string
-      image_tag:
-        description: 'Image tag to deploy; set as image.tag'
-        required: false
-        default: ${{ github.sha }}
+      source_sha:
+        description: >-
+          Commit to check out AND tag the image with. Required, with no default:
+          on workflow_run, github.sha is the default-branch SHA, not the SHA that
+          CI actually built (github.event.workflow_run.head_sha). Defaulting it
+          lets a newer main commit race a completed CI run and deploy an image
+          that was never built.
+        required: true
         type: string
-      ref:
-        description: 'Git ref to check out. Pin this to the built SHA rather than a branch.'
+      extra_helm_set:
+        description: >-
+          Optional extra --set values as a JSON array, e.g. '["a=1","b=2"]'.
+          A JSON array rather than a raw arg string: this is central deploy code
+          and must not interpolate arbitrary shell text into a command.
         required: false
-        default: ${{ github.sha }}
-        type: string
-      extra_helm_args:
-        description: 'Additional args appended to helm upgrade (e.g. extra --set flags)'
-        required: false
-        default: ''
+        default: '[]'
         type: string
       project_id:
         required: false
@@ -108,10 +114,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.source_sha }}
 
       - name: Select WIF secrets
-        id: wif
         env:
           PROVIDER_A: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           SA_A: ${{ secrets.GCP_SERVICE_ACCOUNT }}
@@ -119,22 +124,28 @@ jobs:
           SA_B: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
-          provider="${PROVIDER_A:-${PROVIDER_B:-}}"
-          sa="${SA_A:-${SA_B:-}}"
-          if [ -z "$provider" ] || [ -z "$sa" ]; then
-            echo "::error::No WIF secrets found. Pass 'secrets: inherit' and define either" \
-                 "GCP_WORKLOAD_IDENTITY_PROVIDER+GCP_SERVICE_ACCOUNT or" \
-                 "GCP_WIF_PROVIDER+GCP_WIF_SERVICE_ACCOUNT in the calling repo."
+          # Complete pairs only — see deploy-gate.yml.
+          if [ -n "${PROVIDER_A:-}" ] && [ -n "${SA_A:-}" ]; then
+            provider="$PROVIDER_A"; sa="$SA_A"
+          elif [ -n "${PROVIDER_B:-}" ] && [ -n "${SA_B:-}" ]; then
+            provider="$PROVIDER_B"; sa="$SA_B"
+          else
+            echo "::error::No complete WIF secret pair found. Define BOTH of" \
+                 "GCP_WORKLOAD_IDENTITY_PROVIDER+GCP_SERVICE_ACCOUNT or BOTH of" \
+                 "GCP_WIF_PROVIDER+GCP_WIF_SERVICE_ACCOUNT."
             exit 1
           fi
-          echo "provider=$provider" >> "$GITHUB_OUTPUT"
-          echo "sa=$sa" >> "$GITHUB_OUTPUT"
+          echo "WIF_PROVIDER=$provider" >> "$GITHUB_ENV"
+          echo "WIF_SA=$sa" >> "$GITHUB_ENV"
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ steps.wif.outputs.provider }}
-          service_account: ${{ steps.wif.outputs.sa }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -147,29 +158,81 @@ jobs:
           project_id: ${{ inputs.project_id }}
 
       - name: Helm upgrade
+        env:
+          # Via env, never interpolated into the command line.
+          EXTRA_SET_JSON: ${{ inputs.extra_helm_set }}
+          RELEASE: ${{ inputs.release }}
+          CHART: ${{ inputs.chart_path }}
+          NAMESPACE: ${{ inputs.namespace }}
+          IMAGE_TAG: ${{ inputs.source_sha }}
+          HELM_TIMEOUT: ${{ inputs.helm_timeout }}
         run: |
           set -euo pipefail
-          helm upgrade --install "${{ inputs.release }}" "${{ inputs.chart_path }}" \
-            --namespace "${{ inputs.namespace }}" \
-            --set image.tag="${{ inputs.image_tag }}" \
-            --wait --timeout "${{ inputs.helm_timeout }}" \
-            ${{ inputs.extra_helm_args }}
+
+          # The namespace is expected to exist: ClusterKit creates it alongside
+          # the ReferenceGrant that cross-namespace routing requires, so an app
+          # reaching this point already has one. Fail loudly rather than
+          # --create-namespace, which would mask a missing ReferenceGrant and
+          # produce a deploy that can never receive traffic.
+          if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            echo "::error::Namespace '$NAMESPACE' does not exist. ClusterKit creates it with" \
+                 "the ReferenceGrant; ask the platform peer before deploying."
+            exit 1
+          fi
+
+          cat > parse_extra.py <<'PY'
+          import json, os, sys
+          v = json.loads(os.environ["EXTRA_SET_JSON"] or "[]")
+          if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+              sys.exit("extra_helm_set must be a JSON array of strings")
+          print("\n".join(v))
+          PY
+          # Materialise first: `mapfile < <(...)` masks the parser's exit status,
+          # so malformed input would silently deploy with no extra args.
+          python3 parse_extra.py > extra_set.txt
+          mapfile -t EXTRA < extra_set.txt
+
+          args=()
+          for e in "${EXTRA[@]}"; do
+            [ -n "$e" ] && args+=(--set "$e")
+          done
+
+          helm upgrade --install "$RELEASE" "$CHART" \
+            --namespace "$NAMESPACE" \
+            --set image.tag="$IMAGE_TAG" \
+            --wait --timeout "$HELM_TIMEOUT" \
+            "${args[@]}"
 
       - name: Wait for rollouts
+        env:
+          DEPLOYMENTS: ${{ inputs.deployments }}
+          NAMESPACE: ${{ inputs.namespace }}
+          HELM_TIMEOUT: ${{ inputs.helm_timeout }}
         run: |
           set -euo pipefail
-          IFS=',' read -ra DEPLOYS <<< "${{ inputs.deployments }}"
+          IFS=',' read -ra DEPLOYS <<< "$DEPLOYMENTS"
+          checked=0
           for d in "${DEPLOYS[@]}"; do
             d="$(echo "$d" | xargs)"
             [ -n "$d" ] || continue
-            kubectl rollout status "deployment/$d" \
-              -n "${{ inputs.namespace }}" --timeout="${{ inputs.helm_timeout }}"
+            kubectl rollout status "deployment/$d" -n "$NAMESPACE" --timeout="$HELM_TIMEOUT"
+            checked=$((checked + 1))
           done
+          if [ "$checked" -eq 0 ]; then
+            echo "::error::'deployments' contained no usable names; refusing to pass unchecked."
+            exit 1
+          fi
 
   # Kubernetes reporting success is not the same as the site serving. The gate
   # waits for the GCLB backend and the public hostname. See deploy-gate.yml.
   gate:
     needs: deploy
+    # Permissions cannot be ELEVATED through nested reusable workflows. This
+    # file's top-level grant is contents:read, so without an explicit block
+    # here the gate cannot mint an OIDC token no matter what it declares.
+    permissions:
+      contents: read
+      id-token: write
     # Must be the fully-qualified reference, not ./.github/... — a relative
     # `uses:` inside a reusable workflow resolves against the CALLING repo,
     # where this file does not exist.
@@ -177,4 +240,6 @@ jobs:
     with:
       hostnames: ${{ inputs.hostnames }}
       project_id: ${{ inputs.project_id }}
+    # `inherit` here forwards only what this workflow was itself given, which is
+    # the four optional WIF secrets above — not the caller's whole secret store.
     secrets: inherit
