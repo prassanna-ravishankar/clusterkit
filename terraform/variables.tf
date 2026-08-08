@@ -135,6 +135,8 @@ variable "github_deploy_repos" {
     bananagraph = { repo = "bananagraph" }
     pulse       = { repo = "pulse" }
     clitcoin    = { repo = "clitcoin" }
+
+    agent-status-codes = { repo = "agent-status-codes" }
   }
 }
 

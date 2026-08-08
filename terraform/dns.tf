@@ -90,3 +90,43 @@ module "dns_feedforward" {
     # Email Routing MX/DKIM/SPF records are managed by Cloudflare Email Routing — not Terraform.
   ]
 }
+
+# agentstatuscodes.org
+# www is an edge-only hostname: no HTTPRoute/pod backs it. The proxied A record
+# gives Cloudflare something to answer for, and the dynamic redirect below
+# rewrites www → apex before the request ever reaches the Gateway.
+module "dns_agentstatuscodes" {
+  source  = "./modules/cloudflare-dns"
+  zone_id = local.cloudflare_zone_ids["agentstatuscodes.org"]
+
+  records = [
+    { key = "www", name = "www.agentstatuscodes.org", content = "34.149.49.202", type = "A", proxied = true },
+
+    # Apex A record managed by ExternalDNS via HTTPRoute.
+  ]
+}
+
+# www.agentstatuscodes.org → https://agentstatuscodes.org (301, edge redirect)
+resource "cloudflare_ruleset" "agentstatuscodes_www_redirect" {
+  zone_id = local.cloudflare_zone_ids["agentstatuscodes.org"]
+  name    = "www to apex redirect"
+  kind    = "zone"
+  phase   = "http_request_dynamic_redirect"
+
+  rules {
+    expression  = "(http.host eq \"www.agentstatuscodes.org\")"
+    action      = "redirect"
+    description = "Redirect www to apex"
+    enabled     = true
+
+    action_parameters {
+      from_value {
+        status_code           = 301
+        preserve_query_string = true
+        target_url {
+          expression = "concat(\"https://agentstatuscodes.org\", http.request.uri.path)"
+        }
+      }
+    }
+  }
+}
