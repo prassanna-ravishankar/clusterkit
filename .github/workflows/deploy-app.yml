@@ -239,7 +239,13 @@ jobs:
     # Must be the fully-qualified reference, not ./.github/... — a relative
     # `uses:` inside a reusable workflow resolves against the CALLING repo,
     # where this file does not exist.
-    uses: prassanna-ravishankar/clusterkit/.github/workflows/deploy-gate.yml@main
+    #
+    # Pinned to a tag, NOT @main. A caller pinning deploy-app@<tag> reasonably
+    # expects the whole pipeline frozen, but a nested @main reference silently
+    # floats the gate half on every run — so "pinned" callers would pick up
+    # untested gate changes. Bump this deliberately alongside a new deploy-app
+    # tag.
+    uses: prassanna-ravishankar/clusterkit/.github/workflows/deploy-gate.yml@deploy-gate/v1
     with:
       hostnames: ${{ inputs.hostnames }}
       project_id: ${{ inputs.project_id }}
