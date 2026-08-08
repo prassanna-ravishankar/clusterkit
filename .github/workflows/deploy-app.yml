@@ -193,7 +193,10 @@ jobs:
           mapfile -t EXTRA < extra_set.txt
 
           args=()
-          for e in "${EXTRA[@]}"; do
+          # ${EXTRA[@]:+...} / ${args[@]:+...}: expanding an empty array under
+          # `set -u` is an unbound-variable error on bash < 4.4. Runners ship
+          # bash 5, but the guard costs nothing and this is central deploy code.
+          for e in ${EXTRA[@]:+"${EXTRA[@]}"}; do
             [ -n "$e" ] && args+=(--set "$e")
           done
 
@@ -201,7 +204,7 @@ jobs:
             --namespace "$NAMESPACE" \
             --set image.tag="$IMAGE_TAG" \
             --wait --timeout "$HELM_TIMEOUT" \
-            "${args[@]}"
+            ${args[@]:+"${args[@]}"}
 
       - name: Wait for rollouts
         env:
@@ -240,6 +243,14 @@ jobs:
     with:
       hostnames: ${{ inputs.hostnames }}
       project_id: ${{ inputs.project_id }}
-    # `inherit` here forwards only what this workflow was itself given, which is
-    # the four optional WIF secrets above — not the caller's whole secret store.
-    secrets: inherit
+    # Forward explicitly rather than `inherit`. A caller that maps secrets
+    # explicitly (rather than inheriting) leaves the unmapped pair unset, and
+    # relying on `inherit` to re-forward through a second hop is the murkiest
+    # corner of nested reusable workflows. Passing each one by name is
+    # unambiguous; deploy-gate treats all four as optional and needs one
+    # complete pair.
+    secrets:
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+      GCP_WIF_SERVICE_ACCOUNT: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
