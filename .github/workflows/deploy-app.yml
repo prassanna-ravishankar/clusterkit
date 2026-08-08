@@ -1,0 +1,180 @@
+name: ClusterKit deploy app
+
+# Opinionated end-to-end deploy for a single-chart ClusterKit app:
+#
+#   auth -> GKE credentials -> helm upgrade --install -> rollout -> GCLB gate
+#
+# Assumes the simple shape: one Helm chart, one release, deployments in one
+# namespace, routed through clusterkit-gateway. That is agent-status-codes
+# today. Apps using helmfile (webwhen, bananagraph) or a workflow-per-component
+# layout (repowire) do not fit this and should keep their own deploy step —
+# they can still call deploy-gate.yml on its own.
+#
+# Image building is deliberately NOT included. Apps build differently
+# (Dockerfile paths, matrices, build args) and that is the part least worth
+# standardising. Build and push first, then call this with the tag you pushed.
+#
+#   jobs:
+#     deploy:
+#       needs: build
+#       uses: prassanna-ravishankar/clusterkit/.github/workflows/deploy-app.yml@main
+#       with:
+#         chart_path:  charts/agent-status-codes
+#         release:     agent-status-codes
+#         namespace:   agent-status-codes
+#         image_tag:   ${{ github.sha }}
+#         deployments: agent-status-codes
+#         hostnames:   agentstatuscodes.org
+#       secrets: inherit
+#
+# Auth: see deploy-gate.yml. Both WIF secret naming conventions are accepted.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      chart_path:
+        description: 'Path to the Helm chart in the calling repo'
+        required: true
+        type: string
+      release:
+        description: 'Helm release name'
+        required: true
+        type: string
+      namespace:
+        description: 'Kubernetes namespace to deploy into'
+        required: true
+        type: string
+      deployments:
+        description: 'Comma-separated Deployment names to wait on (usually the release name)'
+        required: true
+        type: string
+      hostnames:
+        description: 'Comma-separated public hostnames to verify once rolled out'
+        required: true
+        type: string
+      image_tag:
+        description: 'Image tag to deploy; set as image.tag'
+        required: false
+        default: ${{ github.sha }}
+        type: string
+      ref:
+        description: 'Git ref to check out. Pin this to the built SHA rather than a branch.'
+        required: false
+        default: ${{ github.sha }}
+        type: string
+      extra_helm_args:
+        description: 'Additional args appended to helm upgrade (e.g. extra --set flags)'
+        required: false
+        default: ''
+        type: string
+      project_id:
+        required: false
+        default: 'baldmaninc'
+        type: string
+      cluster_name:
+        required: false
+        default: 'clusterkit'
+        type: string
+      cluster_location:
+        required: false
+        default: 'us-central1'
+        type: string
+      helm_timeout:
+        description: 'Timeout for helm upgrade --wait and each rollout'
+        required: false
+        default: '5m'
+        type: string
+    secrets:
+      # See deploy-gate.yml — naming is not uniform across app repos.
+      GCP_WORKLOAD_IDENTITY_PROVIDER:
+        required: false
+      GCP_SERVICE_ACCOUNT:
+        required: false
+      GCP_WIF_PROVIDER:
+        required: false
+      GCP_WIF_SERVICE_ACCOUNT:
+        required: false
+
+jobs:
+  deploy:
+    name: Helm upgrade + rollout
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required to mint the OIDC token for WIF
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Select WIF secrets
+        id: wif
+        env:
+          PROVIDER_A: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SA_A: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          PROVIDER_B: ${{ secrets.GCP_WIF_PROVIDER }}
+          SA_B: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          provider="${PROVIDER_A:-${PROVIDER_B:-}}"
+          sa="${SA_A:-${SA_B:-}}"
+          if [ -z "$provider" ] || [ -z "$sa" ]; then
+            echo "::error::No WIF secrets found. Pass 'secrets: inherit' and define either" \
+                 "GCP_WORKLOAD_IDENTITY_PROVIDER+GCP_SERVICE_ACCOUNT or" \
+                 "GCP_WIF_PROVIDER+GCP_WIF_SERVICE_ACCOUNT in the calling repo."
+            exit 1
+          fi
+          echo "provider=$provider" >> "$GITHUB_OUTPUT"
+          echo "sa=$sa" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ steps.wif.outputs.provider }}
+          service_account: ${{ steps.wif.outputs.sa }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ inputs.cluster_name }}
+          location: ${{ inputs.cluster_location }}
+          project_id: ${{ inputs.project_id }}
+
+      - name: Helm upgrade
+        run: |
+          set -euo pipefail
+          helm upgrade --install "${{ inputs.release }}" "${{ inputs.chart_path }}" \
+            --namespace "${{ inputs.namespace }}" \
+            --set image.tag="${{ inputs.image_tag }}" \
+            --wait --timeout "${{ inputs.helm_timeout }}" \
+            ${{ inputs.extra_helm_args }}
+
+      - name: Wait for rollouts
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra DEPLOYS <<< "${{ inputs.deployments }}"
+          for d in "${DEPLOYS[@]}"; do
+            d="$(echo "$d" | xargs)"
+            [ -n "$d" ] || continue
+            kubectl rollout status "deployment/$d" \
+              -n "${{ inputs.namespace }}" --timeout="${{ inputs.helm_timeout }}"
+          done
+
+  # Kubernetes reporting success is not the same as the site serving. The gate
+  # waits for the GCLB backend and the public hostname. See deploy-gate.yml.
+  gate:
+    needs: deploy
+    # Must be the fully-qualified reference, not ./.github/... — a relative
+    # `uses:` inside a reusable workflow resolves against the CALLING repo,
+    # where this file does not exist.
+    uses: prassanna-ravishankar/clusterkit/.github/workflows/deploy-gate.yml@main
+    with:
+      hostnames: ${{ inputs.hostnames }}
+      project_id: ${{ inputs.project_id }}
+    secrets: inherit
