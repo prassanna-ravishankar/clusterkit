@@ -60,12 +60,19 @@ on:
         default: '200'
         type: string
     secrets:
+      # Secret names are NOT uniform across app repos: webwhen and bananagraph
+      # use GCP_WORKLOAD_IDENTITY_PROVIDER / GCP_SERVICE_ACCOUNT, while repowire
+      # uses GCP_WIF_PROVIDER / GCP_WIF_SERVICE_ACCOUNT. Both pairs are optional
+      # and the job picks whichever is set, so `secrets: inherit` works for every
+      # caller without renaming anything.
       GCP_WORKLOAD_IDENTITY_PROVIDER:
-        description: 'WIF provider; same secret the caller uses to deploy'
-        required: true
+        required: false
       GCP_SERVICE_ACCOUNT:
-        description: 'gh-deploy-<app> service account email'
-        required: true
+        required: false
+      GCP_WIF_PROVIDER:
+        required: false
+      GCP_WIF_SERVICE_ACCOUNT:
+        required: false
 
 jobs:
   gate:
@@ -75,11 +82,32 @@ jobs:
       contents: read
       id-token: write  # Required to mint the OIDC token for WIF
     steps:
+      - name: Select WIF secrets
+        id: wif
+        env:
+          PROVIDER_A: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SA_A: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          PROVIDER_B: ${{ secrets.GCP_WIF_PROVIDER }}
+          SA_B: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          provider="${PROVIDER_A:-${PROVIDER_B:-}}"
+          sa="${SA_A:-${SA_B:-}}"
+          if [ -z "$provider" ] || [ -z "$sa" ]; then
+            echo "::error::No WIF secrets found. Pass 'secrets: inherit' and define either" \
+                 "GCP_WORKLOAD_IDENTITY_PROVIDER+GCP_SERVICE_ACCOUNT or" \
+                 "GCP_WIF_PROVIDER+GCP_WIF_SERVICE_ACCOUNT in the calling repo."
+            exit 1
+          fi
+          # Values are masked by Actions; only presence is echoed above on failure.
+          echo "provider=$provider" >> "$GITHUB_OUTPUT"
+          echo "sa=$sa" >> "$GITHUB_OUTPUT"
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.wif.outputs.provider }}
+          service_account: ${{ steps.wif.outputs.sa }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
