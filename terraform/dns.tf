@@ -130,3 +130,42 @@ resource "cloudflare_ruleset" "agentstatuscodes_www_redirect" {
     }
   }
 }
+
+# commonobligations.org
+# www is served at Cloudflare's edge and redirected before it reaches the
+# Gateway. The apex A record is owned by ExternalDNS from the app HTTPRoute.
+module "dns_commonobligations" {
+  source  = "./modules/cloudflare-dns"
+  zone_id = local.cloudflare_zone_ids["commonobligations.org"]
+
+  records = [
+    { key = "www", name = "www.commonobligations.org", content = "34.149.49.202", type = "A", proxied = true },
+
+    # Apex A record managed by ExternalDNS via HTTPRoute.
+  ]
+}
+
+# www.commonobligations.org → https://commonobligations.org (301, edge redirect)
+resource "cloudflare_ruleset" "commonobligations_www_redirect" {
+  zone_id = local.cloudflare_zone_ids["commonobligations.org"]
+  name    = "www to apex redirect"
+  kind    = "zone"
+  phase   = "http_request_dynamic_redirect"
+
+  rules {
+    expression  = "(http.host eq \"www.commonobligations.org\")"
+    action      = "redirect"
+    description = "Redirect www to apex"
+    enabled     = true
+
+    action_parameters {
+      from_value {
+        status_code           = 301
+        preserve_query_string = true
+        target_url {
+          expression = "concat(\"https://commonobligations.org\", http.request.uri.path)"
+        }
+      }
+    }
+  }
+}
